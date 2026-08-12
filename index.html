@@ -737,8 +737,79 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{
 .mention-item .mav{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;line-height:1}
 .mention-item .mnm{font-weight:600;font-size:.9em}
 .mention-item .mrk{font-size:.76em;color:var(--mute)}
+
+/* ===== Ban Screen ===== */
+#banScreen{position:fixed;inset:0;z-index:99999;background:#060610;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;animation:banSlideIn .7s cubic-bezier(.16,1,.3,1) both}
+@keyframes banSlideIn{from{opacity:0;transform:translateY(-50px) scale(.95)}to{opacity:1;transform:none}}
+#banScreen.hidden{display:none!important}
+.ban-card{background:#0f0f1e;border:1px solid #2a2a50;border-radius:18px;max-width:480px;width:100%;overflow:hidden;box-shadow:0 32px 100px rgba(0,0,0,.9)}
+.ban-header{background:linear-gradient(135deg,#1c0808,#350d0d);padding:30px 26px 24px;text-align:center;border-bottom:1px solid #4a1515;position:relative}
+.ban-header-icon{font-size:2.8rem;margin-bottom:10px;display:block;animation:banPulse 2s ease-in-out infinite}
+@keyframes banPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.ban-header h1{color:#fff;font-size:1.45rem;font-weight:900;margin:0 0 6px;letter-spacing:-.02em}
+.ban-header p{color:#e07;font-size:.88rem;margin:0;opacity:.9}
+.ban-body{padding:20px 22px 0}
+.ban-section-label{font-size:.7rem;color:#555;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-weight:700}
+.ban-violation-box{background:#080815;border:1px solid #1e1e3a;border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.ban-note{font-size:.88rem;color:#a0a0cc;line-height:1.5;margin:0 0 10px}
+.ban-tags{display:flex;flex-wrap:wrap;gap:6px}
+.ban-tag{background:#2d1010;color:#f77;border:1px solid #5a1818;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700}
+.ban-divider{height:1px;background:#1a1a30;margin:0 -22px 0}
+.ban-community{color:#444;font-size:.78rem;text-align:center;padding:14px 22px;line-height:1.5}
+.ban-actions{display:flex;gap:10px;padding:0 22px 22px;justify-content:center}
+.ban-btn{padding:12px 28px;border-radius:10px;font-weight:800;font-size:.9rem;cursor:pointer;border:none;transition:all .15s;font-family:inherit}
+.ban-btn-appeal{background:#102040;color:#6af;border:1px solid #1a4080;flex:1}
+.ban-btn-appeal:hover{background:#152850;transform:translateY(-1px)}
+.ban-btn-logout{background:#1a0808;color:#f77;border:1px solid #4a1515;flex:1}
+.ban-btn-logout:hover{background:#220a0a;transform:translateY(-1px)}
+#banAppealModal{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+#banAppealModal.open{display:flex}
+.ban-appeal-card{background:#0f0f1e;border:1px solid #2a2a50;border-radius:14px;max-width:440px;width:100%;padding:24px}
+.ban-appeal-card h3{color:#fff;margin:0 0 8px;font-size:1.05rem;font-weight:800}
+.ban-appeal-card p{color:#666;font-size:.83rem;margin:0 0 14px;line-height:1.5}
+.ban-appeal-card textarea{width:100%;height:110px;background:#080815;border:1px solid #1e1e3a;border-radius:8px;padding:10px 12px;color:#ccc;font-family:inherit;font-size:.88rem;resize:vertical;box-sizing:border-box;outline:none}
+.ban-appeal-card textarea:focus{border-color:#2a4080}
+.ban-appeal-actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.ban-appeal-cancel{background:#0f0f1e;color:#666;border:1px solid #1e1e3a;border-radius:8px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ban-appeal-submit{background:#102040;color:#6af;border:1px solid #1a4080;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700;font-family:inherit;font-size:.83rem}
+.ban-appeal-submit:hover{background:#152850}
 </style>
 </head>
+<!-- Ban Screen -->
+<div id="banScreen" class="hidden" role="alertdialog" aria-modal="true">
+  <div class="ban-card">
+    <div class="ban-header">
+      <span class="ban-header-icon">🚫</span>
+      <h1 id="banTitle">חשבונך הוגבל</h1>
+      <p id="banSubtitle">הפרת את תנאי השימוש של SMAI</p>
+    </div>
+    <div class="ban-body">
+      <div class="ban-section-label">פרטי ההגבלה</div>
+      <div class="ban-violation-box">
+        <p class="ban-note" id="banNote">הצוות שלנו זיהה הפרה של כללי הקהילה בחשבונך.</p>
+        <div class="ban-tags" id="banTags"></div>
+      </div>
+      <div class="ban-divider"></div>
+      <p class="ban-community">אנא פעל לפי כללי קהילת SMAI כדי לשמור על סביבה בטוחה לכולם.</p>
+    </div>
+    <div class="ban-actions">
+      <button class="ban-btn ban-btn-appeal" onclick="showBanAppeal()">📝 ערעור</button>
+      <button class="ban-btn ban-btn-logout" onclick="Auth.logout?.()">יציאה</button>
+    </div>
+  </div>
+</div>
+<!-- Ban Appeal Modal -->
+<div id="banAppealModal">
+  <div class="ban-appeal-card">
+    <h3>📨 הגשת ערעור</h3>
+    <p>כתוב את עמדתך. הצוות יבחן את פנייתך ויצור קשר.</p>
+    <textarea id="banAppealText" placeholder="פרט מדוע הנך מאמין/ה שהחסימה אינה מוצדקת..."></textarea>
+    <div class="ban-appeal-actions">
+      <button class="ban-appeal-cancel" onclick="document.getElementById('banAppealModal').classList.remove('open')">ביטול</button>
+      <button class="ban-appeal-submit" onclick="submitBanAppeal()">שלח ערעור</button>
+    </div>
+  </div>
+</div>
 <body>
 <div id="demoStrip" class="hide"></div>
 
@@ -1052,6 +1123,59 @@ const jsq = s => String(s ?? '').replace(/[\\'"<>&\r\n]/g, '').slice(0,120);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,9);
 const nowISO = () => new Date().toISOString();
+
+/* ===== Ban Screen ===== */
+function showBanScreen(banInfo){
+  const el = document.getElementById('banScreen');
+  if(!el) return;
+  const titleEl = document.getElementById('banTitle');
+  if(titleEl){
+    if(banInfo.perm) titleEl.textContent = 'חשבונך חסום לצמיתות';
+    else {
+      try{
+        const d = new Date(banInfo.until);
+        titleEl.textContent = 'חשבונך חסום עד ' + d.toLocaleDateString('he-IL',{day:'numeric',month:'long',year:'numeric'});
+      }catch(_){ titleEl.textContent = 'חשבונך הוגבל'; }
+    }
+  }
+  const noteEl = document.getElementById('banNote');
+  if(noteEl && banInfo.note) noteEl.textContent = banInfo.note;
+  const tagsEl = document.getElementById('banTags');
+  if(tagsEl){
+    const tags = [banInfo.reason, banInfo.item].filter(Boolean);
+    tagsEl.innerHTML = tags.map(t=>'<span class="ban-tag">'+t+'</span>').join('');
+  }
+  el.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function showBanAppeal(){
+  document.getElementById('banAppealModal')?.classList.add('open');
+}
+async function submitBanAppeal(){
+  const txt = document.getElementById('banAppealText')?.value?.trim();
+  if(!txt){ alert('אנא כתוב את הערעור שלך.'); return; }
+  const btn = document.querySelector('.ban-appeal-submit');
+  if(btn){ btn.disabled=true; btn.textContent='שולח...'; }
+  try{
+    const u = Auth.user;
+    await Store.add('appeals',{
+      userId:u?.id||null, userName:u?.name||u?.email||'',
+      text:txt, banReason:u?.banReason||'',
+      createdAt:nowISO(), status:'pending'
+    });
+    document.getElementById('banAppealModal').classList.remove('open');
+    document.getElementById('banAppealText').value='';
+    const n = document.createElement('div');
+    n.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#102040;color:#6af;padding:12px 24px;border-radius:10px;z-index:100001;font-weight:700;font-size:.9rem;border:1px solid #1a4080';
+    n.textContent='הערעור נשלח לצוות SMAI 👍';
+    document.body.appendChild(n); setTimeout(()=>n.remove(),4000);
+  }catch(e){
+    alert('שגיאה בשליחת הערעור: '+e.message);
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='שלח ערעור'; }
+  }
+}
+
 async function smaiAIReply(ticketId,triggerText){
   const ph=await Store.add('messages',{ticketId,senderId:null,senderName:'SMAI AI',senderRank:'ai',staffSide:true,text:'חושב...',internal:false,system:false,createdAt:nowISO()}).catch(()=>null);
   if(!ph) return;
@@ -1415,7 +1539,7 @@ async function initFirebase(){
     onAuthStateChanged:auth.onAuthStateChanged,
     sendPasswordResetEmail:auth.sendPasswordResetEmail,
     sendEmailVerification:auth.sendEmailVerification,
-    updatePassword:auth.updatePassword
+    updatePassword:auth.updatePassword, signInAnonymously:auth.signInAnonymously
   };
   return new Promise(res=>{
     let first = true;
@@ -1435,6 +1559,7 @@ async function initFirebase(){
         catch(e){ Auth.user = { id:fbu.uid, ...prof }; }
       } else Auth.user = null;
       Auth._emit();
+      { const _bi=Auth.banInfo?.(); if(_bi) showBanScreen(_bi); }
       if(first){ first = false; res(FB); }
       else render();
     });
@@ -1603,7 +1728,7 @@ const MAIL_DEFAULT = { provider:'worker', from:'minipro.7548@gmail.com', fromNam
 const Mail = {
   cfg(){ try{ return { ...MAIL_DEFAULT, ...JSON.parse(localStorage.getItem('smai_mail')||'{}') }; }catch(e){ return { ...MAIL_DEFAULT }; } },
   save(c){ localStorage.setItem('smai_mail', JSON.stringify({ ...this.cfg(), ...c })); },
-  ready(){ const c=this.cfg(); return c.provider==='emailjs' ? !!(c.serviceId&&c.templateId&&c.publicKey) : c.provider==='worker' ? !!c.endpoint : false; },
+  ready(){ const c=this.cfg(); if(c.endpoint) return true; return c.provider==='emailjs' ? !!(c.serviceId&&c.templateId&&c.publicKey) : false; },
   /* האם המשתמש ביקש לקבל את סוג העדכון הזה */
   wants(user, kind){
     if(!kind) return true;
@@ -3390,7 +3515,7 @@ route('/ticket', async (app, id)=>{
     const internal = staff && $('#msgInt')?.checked;
     inp.value = ''; inp.disabled = true;
     // ensure Firebase Auth token exists for Firestore rules
-    if(FB && !FB.auth.currentUser){ try{ const {signInAnonymously}=FB; await signInAnonymously(FB.auth); }catch(_){} }
+    if(FB && !FB.auth.currentUser){ try{ await FB.signInAnonymously(FB.auth); }catch(_){} }
     try{
       await Store.add('messages', { ticketId:id, senderId:Auth.user?.id||null,
         senderName: Auth.user?.name || (t.anonymous?'מדווח אנונימי':(t.reporterName||'מדווח')),
