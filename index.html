@@ -1386,20 +1386,27 @@ async function initFirebase(){
     doc:fs.doc, getDoc:fs.getDoc, addDoc:fs.addDoc, setDoc:fs.setDoc, deleteDoc:fs.deleteDoc, onSnapshot:fs.onSnapshot,
     createUserWithEmailAndPassword:auth.createUserWithEmailAndPassword,
     signInWithEmailAndPassword:auth.signInWithEmailAndPassword, signOut:auth.signOut,
-    onAuthStateChanged:auth.onAuthStateChanged
+    onAuthStateChanged:auth.onAuthStateChanged,
+    sendPasswordResetEmail:auth.sendPasswordResetEmail,
+    sendEmailVerification:auth.sendEmailVerification,
+    updatePassword:auth.updatePassword
   };
   return new Promise(res=>{
     let first = true;
     FB.onAuthStateChanged(FB.auth, async fbu=>{
       if(fbu){
-        let prof = await Store.get('users', fbu.uid);
+        let prof = null;
+        try { prof = await Store.get('users', fbu.uid); }
+        catch(e){ console.warn('Firestore read failed — rules may not be configured. Go to #/setup', e?.code||e); }
         if(!prof){
           const own = isOwnerEmail(fbu.email);
-          prof = { email:fbu.email, name:fbu.email.split('@')[0], rank: own?'founder':'citizen', rankLvl: own?70:0,
+          prof = { email:fbu.email, name:fbu.displayName||fbu.email.split('@')[0], rank: own?'founder':'citizen', rankLvl: own?70:0,
             dept:null, isOwner:own, verified:own, mailPrefs:mailPrefDefaults(), avatar:'', bio:'', createdAt:nowISO() };
-          await Store.set('users', fbu.uid, prof);
+          try { await Store.set('users', fbu.uid, prof); }
+          catch(e){ console.warn('Firestore write failed — rules not configured', e?.code||e); }
         }
-        Auth.user = await ensureOwner({ id:fbu.uid, ...prof });
+        try { Auth.user = await ensureOwner({ id:fbu.uid, ...prof }); }
+        catch(e){ Auth.user = { id:fbu.uid, ...prof }; }
       } else Auth.user = null;
       Auth._emit();
       if(first){ first = false; res(FB); }
@@ -1566,7 +1573,7 @@ function moderate(text){
    בלי ספק מוגדר — כל מייל נשמר בתיבת יוצא במערכת ומוצג בפאנל הניהול,
    כך שהאתר עובד במלואו גם לפני שמחברים ספק.
    ===================================================================== */
-const MAIL_DEFAULT = { provider:'none', from:'', fromName:'SMAI', serviceId:'', templateId:'', publicKey:'', endpoint:'', secret:'' };
+const MAIL_DEFAULT = { provider:'none', from:'minipro.7548@gmail.com', fromName:'SMAI Support', serviceId:'', templateId:'', publicKey:'', endpoint:'', secret:'smai-token-2024' };
 const Mail = {
   cfg(){ try{ return { ...MAIL_DEFAULT, ...JSON.parse(localStorage.getItem('smai_mail')||'{}') }; }catch(e){ return { ...MAIL_DEFAULT }; } },
   save(c){ localStorage.setItem('smai_mail', JSON.stringify({ ...this.cfg(), ...c })); },
@@ -3371,7 +3378,12 @@ route('/ticket', async (app, id)=>{
         if(staff && !internal) patch.status = patch.status || (t.status==='resolved'?'open':t.status);
       }
       await Store.update('tickets', id, patch);
-    }catch(e){ toast('שליחת ההודעה נכשלה','err'); }
+    }catch(e){
+      const c = String(e?.code||e?.message||'');
+      if(c.includes('permission-denied')||c.includes('PERMISSION_DENIED'))
+        toast('שגיאת הרשאות — יש להגדיר כללי Firestore. עברו ל-#/setup','err');
+      else toast('שליחת ההודעה נכשלה: '+(e?.message||c||'שגיאה לא ידועה'),'err');
+    }
     finally{ inp.disabled = false; inp.focus(); }
   };
   $('#msgBtn').onclick = send;
@@ -3815,7 +3827,13 @@ function renderTextChannel(s, ch, users, o){
       Sfx.play('msgOut');
       notifyMentions(txt, s.name+' / '+ch.name, users).catch(()=>{});
       if(mod.violation) toast('ההודעה פורסמה וסומנה לבדיקת מודרטור','warn');
-    }catch(e){ toast('שליחה נכשלה','err'); }
+    }catch(e){
+      const c = String(e?.code||e?.message||'');
+      if(c.includes('permission-denied')||c.includes('PERMISSION_DENIED'))
+        toast('שגיאת הרשאות Firestore — עברו ל-#/setup להגדרת הכללים','err');
+      else toast('שליחה נכשלה: '+(e?.message||c||'שגיאה לא ידועה'),'err');
+      inp.value = txt;
+    }
     finally{ inp.disabled=false; inp.focus(); }
   };
   const cb = $('#cbtn'); if(cb) cb.onclick = sendC;
@@ -3957,7 +3975,13 @@ async function renderForum(s, ch, users, threadId, o){
       if(cur.authorId && cur.authorId !== me.id)
         mailUser(cur.authorId, 'mention', MAIL_TPL.threadReply(me.name||me.email, cur.title, txt.slice(0,180))).catch(()=>{});
       notifyMentions(txt, s.name+' / '+cur.title, users).catch(()=>{});
-    }catch(e){ toast('שליחה נכשלה','err'); }
+    }catch(e){
+      const c = String(e?.code||e?.message||'');
+      if(c.includes('permission-denied')||c.includes('PERMISSION_DENIED'))
+        toast('שגיאת הרשאות Firestore — עברו ל-#/setup להגדרת הכללים','err');
+      else toast('שליחה נכשלה: '+(e?.message||c||'שגיאה לא ידועה'),'err');
+      inp.value = txt;
+    }
     finally{ inp.disabled=false; inp.focus(); }
   };
   const tb = $('#tbtn'); if(tb) tb.onclick = sendT;
@@ -4511,7 +4535,13 @@ route('/dm', async (app, id)=>{
       Sfx.play('msgOut');
       const targets = (cur.members||[]).filter(m=>m!==me.id);
       for(const t of targets) mailUser(t, 'dm', MAIL_TPL.dm(me.name||me.email, txt.slice(0,180))).catch(()=>{});
-    }catch(e){ toast('שליחה נכשלה','err'); }
+    }catch(e){
+      const c = String(e?.code||e?.message||'');
+      if(c.includes('permission-denied')||c.includes('PERMISSION_DENIED'))
+        toast('שגיאת הרשאות Firestore — עברו ל-#/setup להגדרת הכללים','err');
+      else toast('שליחה נכשלה: '+(e?.message||c||'שגיאה לא ידועה'),'err');
+      inp.value = txt;
+    }
     finally{ inp.disabled=false; inp.focus(); }
   };
   const db = $('#dbtn'); if(db) db.onclick = sendD;
@@ -4945,8 +4975,9 @@ route('/login', (app)=>{
         <div class="field"><label>אימייל</label><input id="lgMail" type="email" autocomplete="email" placeholder="you@example.com"></div>
         <div class="field"><label>סיסמה</label><input id="lgPass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
         <button class="btn btn-p btn-block" id="lgGo">${ic('login',17)} כניסה למערכת</button>
-        <div class="row" style="justify-content:center;margin-top:14px">
-          <button class="btn btn-ghost btn-sm" id="toUp">אין לכם חשבון? הרשמה</button></div>
+        <div class="row" style="justify-content:center;margin-top:14px;gap:8px">
+          <button class="btn btn-ghost btn-sm" id="toUp">אין לכם חשבון? הרשמה</button>
+          <button class="btn btn-ghost btn-sm" id="toForgot">${ic('lock',14)} שכחתי סיסמה</button></div>
       </div>` : `
       <div style="animation:fadeUp .4s var(--ease) both">
         <h1 style="font-size:1.55rem;margin-bottom:6px">יצירת חשבון</h1>
@@ -4967,6 +4998,7 @@ route('/login', (app)=>{
   function wire(){
     const to = $('#toUp'); if(to) to.onclick = ()=>{ mode='up'; paint(); };
     const ti = $('#toIn'); if(ti) ti.onclick = ()=>{ mode='in'; paint(); };
+    const tf = $('#toForgot'); if(tf) tf.onclick = forgotPassword;
     if(mode==='in'){
       const go = async ()=>{
         const m = $('#lgMail').value.trim(), p = $('#lgPass').value;
@@ -5143,6 +5175,56 @@ async function secureSignUp(name, email, pass){
     Auth.user.emailVerified = true;
   }
   return true;
+}
+
+async function forgotPassword(){
+  const email = await new Promise(resolve=>{
+    openModal(`
+      <div class="m-h"><span class="ico-tile i-violet">${ic('lock',22)}</span>
+        <div><h3 style="margin:0">איפוס סיסמה</h3>
+          <div class="tiny mute">הזינו את האימייל הרשום ונשלח קוד אימות ל3 דקות</div></div></div>
+      <div class="m-b">
+        <div class="field"><label>אימייל</label>
+          <input id="fpMail" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      </div>
+      <div class="m-f">
+        <button class="btn btn-g" id="fpCancel">ביטול</button>
+        <button class="btn btn-p" id="fpSend">${ic('mail',16)} שלח קוד</button>
+      </div>`);
+    const send=()=>{ const m=$('#fpMail').value.trim(); if(!/^\S+@\S+\.\S+$/.test(m)) return toast('כתובת אימייל לא תקינה','warn'); closeModal(); resolve(m); };
+    $('#fpCancel').onclick=()=>{ closeModal(); resolve(null); };
+    $('#fpSend').onclick=send;
+    $('#fpMail').onkeydown=e=>{ if(e.key==='Enter') send(); };
+    setTimeout(()=>$('#fpMail')?.focus(),80);
+  });
+  if(!email) return;
+  const verified = await otpVerify(email, email.split('@')[0]);
+  if(!verified) return;
+  if(FB_ON && FB){
+    try{ await FB.sendPasswordResetEmail(FB.auth,email); toast('קישור איפוס נשלח לתיבת הדואר','ok'); }
+    catch(e){ toast('שגיאה בשליחת איפוס','err'); }
+  } else {
+    const newPass = await new Promise(resolve=>{
+      openModal(`
+        <div class="m-h"><span class="ico-tile i-ok">${ic('check',22)}</span>
+          <div><h3 style="margin:0">סיסמה חדשה</h3></div></div>
+        <div class="m-b">
+          <div class="field"><label>סיסמה חדשה</label><input id="fpNewPass" type="password" placeholder="לפחות 6 תווים" autocomplete="new-password"></div>
+          <div class="field"><label>אישור</label><input id="fpConfPass" type="password" placeholder="חזרו על הסיסמה" autocomplete="new-password"></div>
+        </div>
+        <div class="m-f">
+          <button class="btn btn-g" id="fpClose">ביטול</button>
+          <button class="btn btn-p" id="fpReset">${ic('check',16)} אפסו</button>
+        </div>`);
+      const reset=()=>{ const p1=$('#fpNewPass').value,p2=$('#fpConfPass').value; if(p1.length<6) return toast('לפחות 6 תווים','warn'); if(p1!==p2) return toast('הסיסמאות אינן תואמות','warn'); closeModal(); resolve(p1); };
+      $('#fpClose').onclick=()=>{ closeModal(); resolve(null); };
+      $('#fpReset').onclick=reset;
+      setTimeout(()=>$('#fpNewPass')?.focus(),80);
+    });
+    if(!newPass) return;
+    const users=Local.col('users'), u=users.find(x=>normEmail(x.email)===normEmail(email));
+    if(u){ u.pass=newPass; Local.put('users',users); toast('סיסמה עודכנה','ok'); } else toast('אימייל לא נמצא','err');
+  }
 }
 
 function authErr(e){
@@ -5761,7 +5843,7 @@ route('/admin', async (app)=>{
           <select id="mProv">
             <option value="none" ${mc.provider==='none'?'selected':''}>ללא — שמירה בתיבה הפנימית בלבד</option>
             <option value="emailjs" ${mc.provider==='emailjs'?'selected':''}>EmailJS (הכי מהיר להקמה)</option>
-            <option value="worker" ${mc.provider==='worker'?'selected':''}>שרת משלי / Cloudflare Worker</option>
+            <option value="worker" ${mc.provider==='worker'?'selected':''}>Google Apps Script / Cloudflare Worker</option>
           </select></div>
         <div class="grid g2">
           <div><label>שם השולח</label><input id="mFromName" value="${esc(mc.fromName||'SMAI')}" placeholder="SMAI"></div>
@@ -5942,7 +6024,7 @@ const GAS_SRC = `/**
  * שולח מייל מחשבון הג׳ימייל שאיתו אתם מחוברים ל-Apps Script.
  * מכסה: כ-100 נמענים ביום בחשבון פרטי, 1500 בחשבון Workspace.
  */
-var SMAI_TOKEN = 'CHANGE-ME-123';   // חייב להיות זהה לשדה "טוקן" בפאנל
+var SMAI_TOKEN = 'smai-token-2024';   // חייב להיות זהה לשדה "טוקן" בפאנל
 var SITE_NAME  = 'SMAI';
 
 function doPost(e) {
@@ -6207,6 +6289,26 @@ route('/setup', async (app)=>{
   <div class="page-h anim-up"><div class="eyebrow">${ic('settings',13)} למנהלי האתר</div>
     <h1>התקנה והגדרות</h1><p>כל מה שצריך כדי להעלות את האתר לאוויר ולחבר אותו למסד נתונים אמיתי.</p></div>
 
+  ${!Mail.ready() ? `<div class="card anim-up d1" style="margin-bottom:22px;border:2px solid var(--brand);border-radius:14px">
+    <div class="row" style="gap:10px;margin-bottom:12px">
+      <span class="ico-tile i-brand">${ic('mail',22)}</span>
+      <div><h2 style="margin:0;font-size:1.2rem">חיבור Gmail — 3 צעדים</h2>
+        <p class="small mute" style="margin:3px 0 0">מיילים דרך Google Apps Script מ-minipro.7548@gmail.com</p></div>
+    </div>
+    <div class="steps">
+      <div class="step"><h4>1. פתחו Apps Script</h4>
+        <p><a href="https://script.google.com/home/start" target="_blank" rel="noopener" class="btn btn-p btn-sm">${ic('link',14)} פתחו כאן</a> ← לחצו <b>New project</b></p></div>
+      <div class="step"><h4>2. הדביקו את הקוד מלמטה ו-Deploy → Web app</h4></div>
+      <div class="step"><h4>3. הדביקו URL כאן</h4>
+        <input id="gasQuickUrl" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;font-size:.85rem;margin-top:6px">
+        <button class="btn btn-p btn-sm" id="gasQuickSave" style="margin-top:8px">${ic('check',15)} חבר עכשיו</button>
+      </div>
+    </div>
+  </div>` : `<div class="callout c-ok anim-up d1" style="margin-bottom:22px">
+    <span class="ic">${ic('mail',20)}</span>
+    <div><b>מערכת המיילים מחוברת.</b></div>
+  </div>`}
+
   <div class="callout ${FB_ON?'c-ok':'c-warn'} anim-up d1" style="margin-bottom:22px">
     <span class="ic">${ic(FB_ON?'check':'info',20)}</span>
     <div>${FB_ON
@@ -6270,7 +6372,7 @@ route('/setup', async (app)=>{
         <p class="mute small">שולח מהג׳ימייל שלכם, בלי סיסמת אפליקציה בכלל, ובלי כרטיס אשראי. חמש דקות.</p>
         <div class="steps">
           <div class="step"><h4>פרויקט חדש</h4><p>נכנסים ל-<span class="mono">script.google.com</span> ← New project.</p></div>
-          <div class="step"><h4>הדבקת הקוד</h4><p>מוחקים את מה שיש, מדביקים את הקוד שלמטה, ומשנים את <span class="mono">SMAI_TOKEN</span> למחרוזת אקראית משלכם.</p></div>
+          <div class="step"><h4>הדבקת הקוד</h4><p>מוחקים את מה שיש, מדביקים את הקוד. <b>הטוקן כבר מוגדר</b> (<span class="mono">smai-token-2024</span>).</p></div>
           <div class="step"><h4>פריסה</h4><p>Deploy ← New deployment ← Web app. Execute as: <span class="mono">Me</span>, Who has access: <span class="mono">Anyone</span>.</p></div>
           <div class="step"><h4>אישור הרשאה</h4><p>גוגל תבקש אישור לשליחת מיילים מהחשבון. מאשרים.</p></div>
           <div class="step done"><h4>חיבור</h4><p>מעתיקים את כתובת ה-Web app, ומדביקים אותה בפאנל ← מערכת ומיילים ← ספק "שרת משלי", יחד עם הטוקן. לוחצים "שליחת מייל בדיקה".</p></div>
@@ -6351,7 +6453,19 @@ rankLvl: 70</pre></div>
     </div>
   </div>`;
 
-  $('#cpCfg').onclick = ()=>copyText($('#cfgTxt').textContent, 'הקוד הועתק');
+  const gqs=$('#gasQuickSave');
+  if(gqs) gqs.onclick=()=>{
+    const url=($('#gasQuickUrl').value||'').trim();
+    if(!url||!url.startsWith('https://')) return toast('נא להזין URL תקין שמתחיל ב-https://','warn');
+    Mail.save({ provider:'worker', endpoint:url, from:'minipro.7548@gmail.com', fromName:'SMAI', secret:'smai-token-2024' });
+    toast('מערכת המיילים חוברה! שולחים מייל בדיקה...','ok');
+    setTimeout(async()=>{
+      const r=await Mail.send({to:'minipro.7548@gmail.com',toName:'SMAI Admin',subject:'בדיקת מערכת',body:'מערכת השליחה עובדת נכון.',kind:'',force:true});
+      toast(r.ok?'מייל בדיקה נשלח!':'החיבור נשמר אך בדקו URL',r.ok?'ok':'warn');
+      render();
+    },400);
+  };
+  $('#cpCfg').onclick=()=>copyText($('#cfgTxt').textContent,'הקוד הועתק');
   $('#cpRules').onclick = ()=>copyText($('#rulesTxt').textContent, 'כללי האבטחה הועתקו');
   $('#cpGas').onclick = ()=>copyText($('#gasTxt').textContent, 'קוד שרת המיילים הועתק');
   $('#cpWk').onclick  = ()=>copyText($('#wkTxt').textContent, 'קוד ה-Worker הועתק');
@@ -6627,6 +6741,36 @@ async function seedDemo(force){
   localStorage.setItem('smai_seeded_v2','1');
 }
 
+function initMailDefaults(){
+  try{
+    const ex=JSON.parse(localStorage.getItem('smai_mail')||'{}');
+    if(ex.provider&&ex.provider!=='none') return;
+    localStorage.setItem('smai_mail',JSON.stringify({from:'minipro.7548@gmail.com',fromName:'SMAI',secret:'smai-token-2024',provider:ex.provider||'none',endpoint:ex.endpoint||'',serviceId:ex.serviceId||'',templateId:ex.templateId||'',publicKey:ex.publicKey||''}));
+  }catch(e){}
+}
+function initMobileTilt(){
+  const isMobile=()=>('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  const st=document.createElement('style');
+  st.textContent='.card,.stat-card,.ticket-card,.article-card{transition:transform .12s cubic-bezier(.25,.46,.45,.94),box-shadow .12s ease;will-change:transform;transform-style:preserve-3d;}body{perspective:1200px;}';
+  document.head.appendChild(st);
+  const applyTilt=(rx,ry)=>{
+    const MAX=7; rx=Math.max(-MAX,Math.min(MAX,rx)); ry=Math.max(-MAX,Math.min(MAX,ry));
+    document.querySelectorAll('.card,.stat-card').forEach(c=>{ c.style.transform=`rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`; c.style.boxShadow=`${(-ry*2).toFixed(1)}px ${(rx*2).toFixed(1)}px 24px rgba(0,0,0,.18)`; });
+  };
+  const resetTilt=()=>document.querySelectorAll('.card,.stat-card').forEach(c=>{c.style.transform='';c.style.boxShadow='';});
+  if(isMobile()){
+    const startOri=()=>window.addEventListener('deviceorientation',e=>applyTilt((( e.beta||0)-45)/-6,(e.gamma||0)/5),{passive:true});
+    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      document.addEventListener('touchstart',async function ask(){document.removeEventListener('touchstart',ask);try{if(await DeviceOrientationEvent.requestPermission()==='granted')startOri();}catch(e){}},{once:true});
+    } else startOri();
+    let sx=null,sy=null;
+    document.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+    document.addEventListener('touchend',e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx,dy=Math.abs(e.changedTouches[0].clientY-sy);sx=null;sy=null;if(dy>60)return;if(dx>70)history.back();else if(dx<-70)history.forward();},{passive:true});
+  } else {
+    document.addEventListener('mousemove',e=>{const cx=window.innerWidth/2,cy=window.innerHeight/2;applyTilt(-((e.clientY-cy)/cy)*3,((e.clientX-cx)/cx)*4);},{passive:true});
+    document.addEventListener('mouseleave',resetTilt);
+  }
+}
 /* אתחול */
 (async function boot(){
   try{ if(localStorage.getItem('smai_motion')==='off') document.documentElement.classList.add('no-motion'); }catch(e){}
