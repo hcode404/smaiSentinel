@@ -1418,8 +1418,16 @@ const Store = {
     const rec = { createdAt: nowISO(), ...data };
     if(FB){
       const { collection, addDoc } = FB;
-      const r = await addDoc(collection(FB.db,col), rec);
-      return { id:r.id, ...rec };
+      try{
+        if(FB.auth.currentUser) await FB.auth.currentUser.getIdToken(true).catch(()=>{});
+        const r = await addDoc(collection(FB.db,col), rec);
+        return { id:r.id, ...rec };
+      }catch(e){
+        const code = e?.code||'';
+        if(code==='permission-denied'||code==='unauthenticated'||code==='PERMISSION_DENIED'){
+          console.warn('[Store] Firestore denied ('+code+'), using local fallback for:',col);
+        } else { throw e; }
+      }
     }
     rec.id = rec.id || uid();
     const arr = Local.col(col); arr.push(rec); Local.put(col, arr);
@@ -1479,6 +1487,7 @@ const Auth = {
       const own = isOwnerEmail(email);
       await Store.set('users', cred.user.uid, { email, name, rank: own?'founder':'citizen', rankLvl: own?70:0,
         dept:null, isOwner:own, verified:own, mailPrefs:mailPrefDefaults(), avatar:'', bio:'', createdAt:nowISO() });
+      try{ await Mail.send({ to: email, ...MAIL_TPL.welcomeEmail(name||email) }); }catch(_){}
       return;
     }
     const users = Local.col('users');
@@ -1863,18 +1872,113 @@ ${detail}
 ${detail}
 
 צוות SMAI` })
-};
+,
 
-/* =====================================================================
-   סוכן SMAI AI — עונה על פניות, מציג את כל שלבי החשיבה,
-   ומסלים לנציג אנושי כשהמקרה מחייב זאת.
-   ברירת מחדל: מנוע מקומי מלא בעברית שעובד תמיד, בלי מפתח ובלי עלות.
-   אפשר לחבר ספק חיצוני (Gemini / OpenAI / כל endpoint) דרך פאנל הניהול.
-   ===================================================================== */
-const AI_DEFAULT = { provider:'local', endpoint:'', model:'', key:'', maxAuto:2 };
-const AI = {
-  cfg(){ try{ return { ...AI_DEFAULT, ...JSON.parse(localStorage.getItem('smai_ai')||'{}') }; }catch(e){ return { ...AI_DEFAULT }; } },
-  save(c){ localStorage.setItem('smai_ai', JSON.stringify({ ...this.cfg(), ...c })); }
+  welcomeEmail: (name) => ({
+    subject: 'ברוכים ל-SMAI!',
+    body: `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;background:#0a0a1a;margin:0;padding:0}
+.wrap{max-width:560px;margin:40px auto;background:linear-gradient(135deg,#12122a,#1a1a35);border-radius:16px;overflow:hidden;border:1px solid #2a2a5a}
+.header{background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:40px 32px;text-align:center}
+.logo{font-size:36px;font-weight:900;color:#fff;letter-spacing:2px;margin-bottom:8px}
+.tagline{color:rgba(255,255,255,.85);font-size:14px}
+.body{padding:32px;color:#c8c8e8}
+.title{font-size:22px;font-weight:700;color:#fff;margin-bottom:16px}
+.text{font-size:15px;line-height:1.7;margin-bottom:20px;color:#a0a0c0}
+.btn{display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin:12px 0}
+.footer{text-align:center;padding:20px;color:#555;font-size:12px;border-top:1px solid #1e1e3a}
+</style></head><body>
+<div class="wrap">
+  <div class="header"><div class="logo">SMAI</div><div class="tagline">Security Management AI</div></div>
+  <div class="body">
+    <div class="title">שלום ${esc(name)}, ברוכים ל-SMAI! 🎉</div>
+    <p class="text">אנחנו שמחים שהצטרפת לקהילת SMAI. החשבון שלך נוצר בהצלחה ואתה מוכן להתחיל.</p>
+    <p class="text">אם יש לך שאלות או זקוק לעזרה — הצוות שלנו פתוח בשבילך.</p>
+    <a class="btn" href="https://hcode404.github.io/smaiSentinel/">כנסו ל-SMAI &rarr;</a>
+  </div>
+  <div class="footer">ניום SMAI &bull; אנא אל תשיב למייל זה</div>
+</div></body></html>`
+  }),
+
+  mentionNotif: (mentionedBy, channelName, msgText) => ({
+    subject: `הוזכרת על ידי ${esc(mentionedBy)} ב-SMAI`,
+    body: `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;background:#0a0a1a;margin:0;padding:0}
+.wrap{max-width:560px;margin:40px auto;background:linear-gradient(135deg,#12122a,#1a1a35);border-radius:16px;overflow:hidden;border:1px solid #2a2a5a}
+.header{background:linear-gradient(135deg,#f59e0b,#d97706);padding:32px;text-align:center}
+.logo{font-size:28px;font-weight:900;color:#fff;letter-spacing:2px}
+.body{padding:32px;color:#c8c8e8}
+.title{font-size:20px;font-weight:700;color:#fff;margin-bottom:16px}
+.mention-box{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:16px;margin:16px 0;font-size:15px;color:#e8c96a;line-height:1.6}
+.meta{font-size:13px;color:#666;margin-bottom:8px}
+.btn{display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px;margin:12px 0}
+.footer{text-align:center;padding:20px;color:#555;font-size:12px;border-top:1px solid #1e1e3a}
+</style></head><body>
+<div class="wrap">
+  <div class="header"><div class="logo">🔔 SMAI</div></div>
+  <div class="body">
+    <div class="title">תרוכית נשל</div>
+    <p>הוזכרת על ידי <strong>${esc(mentionedBy)}</strong> סיחה <strong>${esc(channelName)}</strong>:</p>
+    <div class="mention-box"><div class="meta">@${esc(mentionedBy)}:</div>${esc(msgText)}</div>
+    <a class="btn" href="https://hcode404.github.io/smaiSentinel/">צמייל סיחה &rarr;</a>
+  </div>
+  <div class="footer">נשלח על ידי SMAI</div>
+</div></body></html>`
+  }),
+
+  passwordChanged: (name) => ({
+    subject: 'הסיסמה שונתה בהצלחה',
+    body: `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;background:#0a0a1a;margin:0;padding:0}
+.wrap{max-width:560px;margin:40px auto;background:linear-gradient(135deg,#12122a,#1a1a35);border-radius:16px;overflow:hidden;border:1px solid #2a2a5a}
+.header{background:linear-gradient(135deg,#10b981,#059669);padding:32px;text-align:center}
+.logo{font-size:28px;font-weight:900;color:#fff}
+.body{padding:32px;color:#c8c8e8}
+.title{font-size:20px;font-weight:700;color:#fff;margin-bottom:16px}
+.info-box{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:16px;margin:16px 0;font-size:14px;color:#6ee7b7}
+.warn{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:14px;margin-top:16px;font-size:13px;color:#fca5a5}
+.footer{text-align:center;padding:20px;color:#555;font-size:12px;border-top:1px solid #1e1e3a}
+</style></head><body>
+<div class="wrap">
+  <div class="header"><div class="logo">🔒 SMAI</div></div>
+  <div class="body">
+    <div class="title">שלום ${esc(name)},</div>
+    <p>הסיסמה לחשבון SMAI שלך שונתה בהצלחה.</p>
+    <div class="info-box">✅ הסיסמה שונתה: ${new Date().toLocaleString('he-IL')}</div>
+    <div class="warn">⚠️ אם לא אתה ביצעת פעולה זו, צור קשר עם התמיכה בהקדם.</div>
+  </div>
+  <div class="footer">נשלח על ידי SMAI</div>
+</div></body></html>`
+  }),
+
+  ticketAccepted: (name, ticketTitle) => ({
+    subject: `הפנייתך נלקחה לטיפול`,
+    body: `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="UTF-8"><style>
+body{font-family:Arial,sans-serif;background:#0a0a1a;margin:0;padding:0}
+.wrap{max-width:560px;margin:40px auto;background:linear-gradient(135deg,#12122a,#1a1a35);border-radius:16px;overflow:hidden;border:1px solid #2a2a5a}
+.header{background:linear-gradient(135deg,#3b82f6,#1d4ed8);padding:32px;text-align:center}
+.logo{font-size:28px;font-weight:900;color:#fff}
+.body{padding:32px;color:#c8c8e8}
+.title{font-size:20px;font-weight:700;color:#fff;margin-bottom:12px}
+.status-box{background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.4);border-radius:10px;padding:16px;margin:16px 0}
+.status-val{font-size:16px;font-weight:700;color:#60a5fa}
+.ticket-title{background:rgba(255,255,255,.05);border-radius:8px;padding:12px;margin:12px 0;font-size:15px;color:#d1d5db}
+.btn{display:inline-block;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px;margin:12px 0}
+.footer{text-align:center;padding:20px;color:#555;font-size:12px;border-top:1px solid #1e1e3a}
+</style></head><body>
+<div class="wrap">
+  <div class="header"><div class="logo">🎫 SMAI</div></div>
+  <div class="body">
+    <div class="title">שלום ${esc(name)},</div>
+    <p>צוות התמיכה קיבל את הפנייה שלך לטיפול:</p>
+    <div class="ticket-title">📌 ${esc(ticketTitle)}</div>
+    <div class="status-box"><div class="status-val">🔄 בטיפול</div></div>
+    <p>נחזור אליך בהקדם האפשרי.</p>
+    <a class="btn" href="https://hcode404.github.io/smaiSentinel/">צפייה בפנייה &rarr;</a>
+  </div>
+  <div class="footer">נשלח על ידי SMAI</div>
+</div></body></html>`
+  })
 };
 
 /* מאגר ידע — תשובות אמיתיות, מעשיות, לפי סוג הפנייה */
@@ -2848,6 +2952,8 @@ const Friends = {
       from: me.id, fromName: me.name || me.email, to: other, toName: otherName || '',
       status: 'pending', createdAt: nowISO()
     };
+    if(FB && !FB.auth.currentUser){ try{ await FB.signInAnonymously(FB.auth); }catch(_){} }
+    if(FB && FB.auth.currentUser) await FB.auth.currentUser.getIdToken(true).catch(()=>{});
     const id = await Store.add('friends', rec);
     Sfx.play('pop');
     mailUser(other, 'friend', MAIL_TPL.friendReq(me.name || me.email)).catch(()=>{});
@@ -4018,6 +4124,8 @@ function renderTextChannel(s, ch, users, o){
       return;
     }
     inp.value = ''; inp.disabled = true;
+    if(FB && !FB.auth.currentUser){ try{ await FB.signInAnonymously(FB.auth); }catch(_){} }
+    if(FB && FB.auth.currentUser) await FB.auth.currentUser.getIdToken(true).catch(()=>{});
     const cc = $('#cCount'); if(cc) cc.textContent = `0 / ${CFG.get('chatMaxLen')}`;
     try{
       await Store.add('cmsgs', { server:s.id, channel:ch.id, channelName:ch.name,
@@ -5422,7 +5530,7 @@ async function forgotPassword(){
     });
     if(!newPass) return;
     const users=Local.col('users'), u=users.find(x=>normEmail(x.email)===normEmail(email));
-    if(u){ u.pass=newPass; Local.put('users',users); toast('סיסמה עודכנה','ok'); } else toast('אימייל לא נמצא','err');
+    if(u){ u.pass=newPass; Local.put('users',users); toast('סיסמה עודכנה','ok'); try{ await Mail.send({ to: u.email, ...MAIL_TPL.passwordChanged(u.name||u.email) }); }catch(_){} } else toast('אימייל לא נמצא','err');
   }
 }
 
