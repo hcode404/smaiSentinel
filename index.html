@@ -9,7 +9,8 @@
 <meta property="og:title" content="SMAI — מרכז הגנה על ילדים ברשת">
 <meta property="og:description" content="דיווח על הטרדה, סחיטה, פריצה או תוכן פוגעני — וקבלת ליווי אנושי מהצוות שלנו.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2338bdf8'/%3E%3Cstop offset='1' stop-color='%230e7490'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 4 8 13v18c0 14 10 24 24 29 14-5 24-15 24-29V13L32 4z'/%3E%3Cpath fill='%23fff' d='M27.5 41 18 31.6l3.6-3.6 5.9 5.9L43 18.4l3.6 3.6z'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f6f8c'/%3E%3Ctext x='32' y='46' font-family='Arial Black,Arial' font-weight='900' font-size='38' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f6f8c'/%3E%3Ctext x='32' y='46' font-family='Arial Black,Arial' font-weight='900' font-size='38' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
@@ -727,6 +728,15 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{
 /* --- כפתור השתקה --- */
 .iconbtn.off{ opacity:.55 }
 .iconbtn.off:hover{ opacity:1 }
+
+/* ========= @mention ========= */
+.mention-list{position:absolute;bottom:calc(100% + 4px);right:0;left:0;background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:300;max-height:220px;overflow-y:auto;display:none}
+.mention-list.open{display:block}
+.mention-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;transition:background .12s}
+.mention-item:hover,.mention-item.sel{background:var(--bg3)}
+.mention-item .mav{width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;line-height:1}
+.mention-item .mnm{font-weight:600;font-size:.9em}
+.mention-item .mrk{font-size:.76em;color:var(--mute)}
 </style>
 </head>
 <body>
@@ -735,7 +745,7 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{
 <header class="topbar" id="topbar">
   <div class="topin">
     <a class="logo" href="#/">
-      <span class="mark"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+      <span class="mark"><svg width="26" height="26" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#0f6f8c"/><text x="32" y="46" font-family="Arial Black,Arial" font-weight="900" font-size="38" fill="white" text-anchor="middle">S</text></svg></span>
       <span>SMAI<small>הגנה על ילדים ברשת</small></span>
     </a>
     <nav class="mainnav" id="nav"></nav>
@@ -1042,6 +1052,22 @@ const jsq = s => String(s ?? '').replace(/[\\'"<>&\r\n]/g, '').slice(0,120);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,9);
 const nowISO = () => new Date().toISOString();
+async function smaiAIReply(ticketId,triggerText){
+  const ph=await Store.add('messages',{ticketId,senderId:null,senderName:'SMAI AI',senderRank:'ai',staffSide:true,text:'חושב...',internal:false,system:false,createdAt:nowISO()}).catch(()=>null);
+  if(!ph) return;
+  try{
+    const apiKey=localStorage.getItem('smai_ai_key')||'';
+    if(!apiKey){ await Store.update('messages',ph.id,{text:'כדי להשתמש ב-@AI הגדר מפתח Gemini API בהגדרות (מפתח: smai_ai_key ב-localStorage).'}); return; }
+    const msgs=await Store.list('messages').catch(()=>[]);
+    const ctx=msgs.filter(m=>m.ticketId===ticketId&&!m.internal).slice(-8).map(m=>(m.senderName||'משתמש')+': '+m.text).join('\n');
+    const body={contents:[{parts:[{text:'אתה עוזר תמיכה של SMAI. ענה בעברית, קצר וענייני.\n\n'+ctx+'\nAI:'}]}]};
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await res.json();
+    const reply=j?.candidates?.[0]?.content?.parts?.[0]?.text||'לא הצלחתי לקבל תשובה.';
+    await Store.update('messages',ph.id,{text:reply});
+  }catch(e){ await Store.update('messages',ph.id,{text:'שגיאת AI: '+e.message}); }
+}
+
 const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 function debounce(fn,ms=320){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 function ticketCode(){
@@ -3264,8 +3290,9 @@ route('/ticket', async (app, id)=>{
           <div style="flex:1"><h3 style="margin:0">התכתבות</h3>
           <div class="tiny mute">${staff?'הודעות פנימיות מסומנות ולא נראות למדווח':'הצוות יראה את ההודעות שלכם כאן'}</div></div></div>
         <div class="chat" id="chat">${loader()}</div>
-        <div class="composer">
-          <textarea id="msgIn" placeholder="כתיבת הודעה... (Ctrl+Enter לשליחה)"></textarea>
+        <div class="composer" style="position:relative">
+          <div id="mentionList" class="mention-list"></div>
+          <textarea id="msgIn" placeholder="כתיבת הודעה... (Enter לשליחה)"></textarea>
           <button class="btn btn-p" id="msgBtn" style="height:48px">${ic('send',17)}</button>
         </div>
         ${staff?`<label class="check" style="margin-top:10px"><input type="checkbox" id="msgInt">
@@ -3362,10 +3389,13 @@ route('/ticket', async (app, id)=>{
     const inp = $('#msgIn'); const txt = inp.value.trim(); if(!txt) return;
     const internal = staff && $('#msgInt')?.checked;
     inp.value = ''; inp.disabled = true;
+    // ensure Firebase Auth token exists for Firestore rules
+    if(FB && !FB.auth.currentUser){ try{ const {signInAnonymously}=FB; await signInAnonymously(FB.auth); }catch(_){} }
     try{
       await Store.add('messages', { ticketId:id, senderId:Auth.user?.id||null,
         senderName: Auth.user?.name || (t.anonymous?'מדווח אנונימי':(t.reporterName||'מדווח')),
         senderRank: Auth.user?.rank || 'citizen', staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO() });
+      if(/\u0040AI\b/i.test(txt)) smaiAIReply(id, txt);
       if(!internal){
         if(staff) await notifyTicket(t, 'ticketReply', MAIL_TPL.ticketReply(t, Auth.user?.name||'נציג SMAI', txt));
         else if(t.assignedTo) await mailUser(t.assignedTo, 'ticketReply', MAIL_TPL.ticketReply(t, 'המדווח', txt));
@@ -3387,7 +3417,51 @@ route('/ticket', async (app, id)=>{
     finally{ inp.disabled = false; inp.focus(); }
   };
   $('#msgBtn').onclick = send;
-  $('#msgIn').addEventListener('keydown', e=>{ if(e.key==='Enter' && (e.ctrlKey||e.metaKey)) send(); });
+  $('#msgIn').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+  // ===== @mention autocomplete =====
+  (()=>{
+    const mInp = $('#msgIn'), mList = $('#mentionList');
+    if(!mInp || !mList) return;
+    let mActive=false, mStart=0, mQuery='', mIdx=0, mItems=[];
+    let _users=[];
+    Store.list('users').then(u=>{ _users=u||[]; }).catch(()=>{});
+    function _items(q){
+      const ai={id:'__ai__',name:'AI',email:''};
+      return [ai,..._users].filter(u=> !q || (u.name||'').toLowerCase().startsWith(q.toLowerCase()) || (u.email||'').toLowerCase().startsWith(q.toLowerCase()) || (u.id==='__ai__'&&'ai'.startsWith(q.toLowerCase())) ).slice(0,8);
+    }
+    function _render(){
+      if(!mItems.length){ mList.classList.remove('open'); return; }
+      mList.innerHTML=mItems.map((u,i)=>{
+        const isAI=u.id==='__ai__';
+        const av=isAI?'🤖':(u.name||'?')[0].toUpperCase();
+        const label=isAI?'AI':(u.name||u.email||u.id);
+        const sub=isAI?'עוזר AI חכם':(u.email||'');
+        return '<div class="mention-item'+(i===mIdx?' sel':'')+'" data-n="'+label+'"><div class="mav">'+av+'</div><div><div class="mnm">@'+label+'</div><div class="mrk">'+sub+'</div></div></div>';
+      }).join('');
+      mList.classList.add('open');
+      mList.querySelectorAll('.mention-item').forEach(el=>{ el.addEventListener('mousedown', ev=>{ ev.preventDefault(); _pick(el.dataset.n); }); });
+    }
+    function _pick(name){
+      const v=mInp.value;
+      mInp.value=v.substring(0,mStart)+'@'+name+' '+v.substring(mInp.selectionEnd);
+      mList.classList.remove('open'); mActive=false;
+      const pos=mStart+name.length+2; mInp.focus(); mInp.setSelectionRange(pos,pos);
+    }
+    mInp.addEventListener('input',()=>{
+      const v=mInp.value, pos=mInp.selectionStart;
+      const m=v.substring(0,pos).match(/@(\w*)$/);
+      if(m){ mActive=true; mStart=v.substring(0,pos).lastIndexOf('@'); mQuery=m[1]; mIdx=0; mItems=_items(mQuery); _render(); }
+      else{ mActive=false; mList.classList.remove('open'); }
+    });
+    mInp.addEventListener('keydown',e=>{
+      if(!mActive||!mList.classList.contains('open')) return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); mIdx=Math.min(mIdx+1,mItems.length-1); _render(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); mIdx=Math.max(mIdx-1,0); _render(); }
+      else if(e.key==='Tab'||(e.key==='Enter'&&mActive)){ e.preventDefault(); e.stopPropagation(); if(mItems[mIdx]) _pick(mItems[mIdx].id==='__ai__'?'AI':(mItems[mIdx].name||mItems[mIdx].email||mItems[mIdx].id)); }
+      else if(e.key==='Escape'){ mList.classList.remove('open'); mActive=false; }
+    });
+    document.addEventListener('click',e=>{ if(!e.target.closest('#mentionList')&&e.target!==mInp) mList.classList.remove('open'); });
+  })();
 
   const th = $('#toHuman');
   if(th) th.onclick = async ()=>{
@@ -3837,7 +3911,7 @@ function renderTextChannel(s, ch, users, o){
     finally{ inp.disabled=false; inp.focus(); }
   };
   const cb = $('#cbtn'); if(cb) cb.onclick = sendC;
-  if(inp) inp.addEventListener('keydown', e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)) sendC(); });
+  if(inp) inp.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendC(); } });
 }
 
 /* ===================== ערוץ פורום ===================== */
