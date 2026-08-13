@@ -2392,7 +2392,7 @@ function renderFooter(){
       <div><h4>מידע</h4><ul>
         <li><a href="#/terms">תנאי שימוש</a></li><li><a href="#/privacy">מדיניות פרטיות</a></li>
         <li><a href="mailto:${esc(SITE.email)}">${esc(SITE.email)}</a></li>
-        <li><a href="#/setup">התקנה למנהלים</a></li></ul></div>
+        </ul></div>
     </div>
     <div class="fbot"><span>© ${new Date().getFullYear()} SMAI. כל הזכויות שמורות.</span>
       <span>${FB_ON ? 'מחובר ל-Firebase' : 'מצב הדגמה מקומי'} · נבנה בישראל</span></div>
@@ -6587,7 +6587,7 @@ service cloud.firestore {
 }`;
 
 route('/setup', async (app)=>{
-  if (Auth.user && Auth.user.rankLvl < 70) { location.hash = '#/'; return; }
+  if (!Auth.user || Auth.user.rankLvl < 70) { location.hash = '#/'; return; }
   const admin = Auth.can('siteConfig');
   const counts = admin ? await (async ()=>{
     const [t,u,r,c] = await Promise.all([Store.list('tickets'),Store.list('users'),Store.list('reports'),Store.list('cmsgs')]);
@@ -7063,6 +7063,7 @@ async function render(){
   try{ await fn(app, arg, arg2, arg3); }
   catch(e){
     console.error(e);
+    if((e?.code==='permission-denied'||e?.message?.includes('permission'))&&!Auth.user){location.hash='#/';return;}
     app.innerHTML = `<div class="card center" style="max-width:520px;margin:50px auto">
       <div class="ico-tile i-dang" style="margin:0 auto 14px;width:56px;height:56px">${ic('alert',24)}</div>
       <h2 style="font-size:1.25rem">משהו השתבש בטעינת העמוד</h2>
