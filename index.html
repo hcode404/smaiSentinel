@@ -3364,6 +3364,24 @@ route('/report', (app)=>{
       await Store.add('messages', { ticketId:t.id, senderId:Auth.user?.id||null,
         senderName: anon ? 'מדווח אנונימי' : ($('#f_name').value.trim()||'מדווח'),
         senderRank:'citizen', text:desc, internal:false, createdAt: nowISO() });
+      // AI: ניתוב אוטומטי + מענה ראשוני + קביעת עדיפות
+      try {
+        var _aid = (desc || title || '').toLowerCase();
+        var _aiDept = _aiRoute(_aid);
+        var _aiUpd = { aiRouted: true, aiDept: _aiDept };
+        if (/דחוף|מיידי|חירום|urgent/.test(_aid)) _aiUpd.priority = 'critical';
+        else if (/חשוב|בעיה גדולה/.test(_aid)) _aiUpd.priority = 'high';
+        await Store.update('tickets', t.id, _aiUpd);
+        var _aiAns = _aiStaff(_aid);
+        await Store.add('messages', {
+          ticketId: t.id, senderId: 'ai-system', senderName: 'עוזר SMAI',
+          senderRank: 'ai', text: _aiAns + '
+
+ניתוב אוטומטי: ' + _aiDept,
+          internal: false, autoReply: true, createdAt: nowISO()
+        });
+      } catch (_ae) {}
+
       const saved = JSON.parse(localStorage.getItem('smai_codes')||'[]');
       saved.unshift({ code, id:t.id, title, at:nowISO() });
       localStorage.setItem('smai_codes', JSON.stringify(saved.slice(0,40)));
@@ -7307,11 +7325,12 @@ function _aiChat(q){
   return 'אני לא בטוח כיצד לעזור בנושא זה. נסה לפתוח דיווח ואנחנו נחזור אליך.';
 }
 function _aiRoute(q){
-  if(/hack|אבטח|פרצ|גנב|פריצ/.test(q)) return 'אבטחה';
-  if(/באג|שגיא|לא עוב|תקל|שבור/.test(q)) return 'תמיכה טכנית';
-  if(/חשבון|סיסמ|כניס|הרשמ/.test(q)) return 'חשבון';
-  if(/קהיל|פורום|משתמש/.test(q)) return 'קהילה';
-  if(/תשלום|מנוי|מחיר/.test(q)) return 'חיוב';
+  if(/hack|פריצ|פרצ|אבטח|גנב|גנוב|גישה לא מורש|unauthorized/.test(q)) return 'אבטחה';
+  if(/באג|שגיא|קריסה|crash|error|לא עוב|תקל|שבור|נשבר|לא נטע|לא נפתח/.test(q)) return 'תמיכה טכנית';
+  if(/חשבון|סיסמ|כניס|התחבר|הרשמ|מייל|אימות|נחסם|חסום|ban/.test(q)) return 'חשבון';
+  if(/קהיל|פורום|משתמש|נושא|תגוב|post|thread|מודרצ/.test(q)) return 'קהילה';
+  if(/תשלום|מנוי|מחיר|חיוב|billing|subscription/.test(q)) return 'חיוב';
+  if(/רעיון|הצע|בקשת פיצ|feature|שיפור|improve/.test(q)) return 'בקשות';
   return 'כללי';
 }
 function _aiMod(txt){
@@ -7323,13 +7342,17 @@ function _aiMod(txt){
 }
 function _aiStaff(q){
   var t=[
-    {p:/סיסמ|כניס/,r:'שלום! לאיפוס סיסמה לחץ על שכחתי סיסמה ופעל לפי ההוראות. נשמח לעזור אם תתקל בבעיות נוספות.'},
-    {p:/באג|שגיא|תקל/,r:'שלום! תודה על הדיווח. נבדוק את הבעיה ונחזור אליך בהקדם עם עדכון.'},
-    {p:/תודה/,r:'שמחים לעזור! אל תהסס לפנות אלינו שוב.'}
+    {p:/חשבון|סיסמ|כניס/,r:'שלום! קיבלנו את פנייתך בנושא החשבון. לאיפוס סיסמה לחץ על שכחתי סיסמה ופעל לפי ההוראות. אם הבעיה נמשכת, הצוות שלנו יחזור אליך תוך 24 שעות.'},
+    {p:/באג|שגיא|תקל|לא עוב|קריס/,r:'שלום! תודה על הדיווח הטכני. הצוות שלנו ישחזר את הבעיה ויתקן אותה בהקדם. נחזור אליך עם עדכון.'},
+    {p:/אבטח|פריצ|פרצ|hack/,r:'שלום! קיבלנו את דיווח האבטחה. מדובר בנושא בעדיפות גבוהה ואנחנו מטפלים בו עכשיו. הצוות יצור איתך קשר בהקדם.'},
+    {p:/תשלום|חיוב|מנוי/,r:'שלום! קיבלנו את פנייתך הכספית. הצוות הפיננסי שלנו יבדוק ויחזור אליך תוך 48 שעות.'},
+    {p:/רעיון|הצע|שיפור/,r:'שלום! תודה על הרעיון. אנחנו אוספים משוב ממשתמשים ונשקול זאת בגרסאות הבאות.'},
+    {p:/קהיל|פורום|משתמש/,r:'שלום! קיבלנו את פנייתך. צוות המודרציה שלנו יבדוק ויטפל בהקדם.'}
   ];
   for(var i=0;i<t.length;i++){if(t[i].p.test(q))return t[i].r;}
-  return 'שלום! קיבלנו את פנייתך ונטפל בה בהקדם. תודה על הסבלנות.';
+  return 'שלום! קיבלנו את פנייתך ונטפל בה בהקדם האפשרי. הצוות שלנו יחזור אליך עם עדכון. תודה על הסבלנות.';
 }
+
 
 (function(){
   var css=document.createElement('style');
