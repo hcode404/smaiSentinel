@@ -1257,7 +1257,7 @@ function toast(msg, kind='ok', ms=4200, silent=false){
 }
 function openModal(html, wide=false){
   const m = $('#modal'); m.className = wide ? 'wide' : '';
-  m.innerHTML = sanitize(html); $('#modalBg').classList.add('open');
+  m.innerHTML = html; $('#modalBg').classList.add('open');
   document.body.style.overflow='hidden';
   setTimeout(()=>{ const f = m.querySelector('input,textarea,select,button'); f?.focus(); }, 60);
 }
@@ -7069,7 +7069,7 @@ async function render(){
   try{ await fn(app, arg, arg2, arg3); }
   catch(e){
     console.error(e);
-    if((e?.code==='permission-denied'||e?.message?.includes('permission'))&&!Auth.user){location.hash='#/';return;}
+    if((e?.code==='permission-denied'||e?.message?.includes('permission'))&&!Auth.user&&!FB.auth.currentUser){location.hash='#/';return;}
     app.innerHTML = `<div class="card center" style="max-width:520px;margin:50px auto">
       <div class="ico-tile i-dang" style="margin:0 auto 14px;width:56px;height:56px">${ic('alert',24)}</div>
       <h2 style="font-size:1.25rem">משהו השתבש בטעינת העמוד</h2>
