@@ -4050,7 +4050,7 @@ function renderTextChannel(s, ch, users, o){
            <div>אתם מושתקים עד ${fmtTime(me.muteUntil)} ${fmtDate(me.muteUntil)}. אפשר לקרוא אבל לא לכתוב.</div></div>`
         : (o.canPost
           ? `<div class="composer" style="border:0;padding:0;margin:0">
-              <textarea id="cin" maxlength="${CFG.get('chatMaxLen')}" placeholder="כתיבת הודעה ב־${esc(ch.name)}... (Ctrl+Enter לשליחה)" style="min-height:46px"></textarea>
+              <textarea id="cin" maxlength="${CFG.get('chatMaxLen')}" placeholder="כתיבת הודעה ב־${esc(ch.name)}... (Enter לשליחה)" style="min-height:46px"></textarea>
               <button class="btn btn-p" id="cbtn" style="height:46px">${ic('send',17)}</button></div>
              <div class="row between" style="margin-top:7px">
                <span class="tiny mute">${ic('shield-check',11)} ההודעה נסרקת אוטומטית לפני הפרסום.</span>
@@ -4195,7 +4195,7 @@ async function renderForum(s, ch, users, threadId, o){
       ${cur.locked ? `<div class="callout c-info" style="padding:11px 13px;font-size:.86rem"><span class="ic">${ic('lock',17)}</span>
         <div>השרשור נעול. אי אפשר להוסיף תגובות.</div></div>`
       : (me && o.canPost && !Auth.muted() ? `<div class="composer" style="border:0;padding:0;margin:0">
-          <textarea id="tin" maxlength="${CFG.get('threadMaxLen')}" placeholder="תגובה לשרשור... (Ctrl+Enter לשליחה)" style="min-height:46px"></textarea>
+          <textarea id="tin" maxlength="${CFG.get('threadMaxLen')}" placeholder="תגובה לשרשור... (Enter לשליחה)" style="min-height:46px"></textarea>
           <button class="btn btn-p" id="tbtn" style="height:46px">${ic('send',17)}</button></div>`
       : `<div class="row between"><span class="small mute">כדי להגיב צריך חשבון פעיל בשרת.</span>
          <a class="btn btn-p btn-sm" href="#/login">${ic('login',15)} כניסה</a></div>`)}
@@ -4294,7 +4294,7 @@ async function renderForum(s, ch, users, threadId, o){
     finally{ inp.disabled=false; inp.focus(); }
   };
   const tb = $('#tbtn'); if(tb) tb.onclick = sendT;
-  const ti = $('#tin'); if(ti) ti.addEventListener('keydown', e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)) sendT(); });
+  const ti = $('#tin'); if(ti) ti.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey) sendT(); });
 }
 
 /* איתור @אזכורים ושליחת התראה במייל */
@@ -4780,7 +4780,7 @@ route('/dm', async (app, id)=>{
           ? `<div class="callout c-warn" style="padding:11px 13px;font-size:.86rem"><span class="ic">${ic('volume-x',17)}</span>
              <div>אתם מושתקים עד ${fmtTime(me.muteUntil)} ${fmtDate(me.muteUntil)}.</div></div>`
           : `<div class="composer" style="border:0;padding:0;margin:0">
-              <textarea id="din" placeholder="הודעה פרטית... (Ctrl+Enter לשליחה)" style="min-height:46px"></textarea>
+              <textarea id="din" placeholder="הודעה פרטית... (Enter לשליחה)" style="min-height:46px"></textarea>
               <button class="btn btn-p" id="dbtn" style="height:46px">${ic('send',17)}</button></div>
              <div class="tiny mute" style="margin-top:7px">${ic('shield-check',11)} גם הודעות פרטיות נסרקות. אפשר לדווח על כל הודעה.</div>`}
       </div>` : `<div class="hm-b" style="display:grid;place-items:center">
@@ -4855,7 +4855,7 @@ route('/dm', async (app, id)=>{
     finally{ inp.disabled=false; inp.focus(); }
   };
   const db = $('#dbtn'); if(db) db.onclick = sendD;
-  const di = $('#din'); if(di) di.addEventListener('keydown', e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)) sendD(); });
+  const di = $('#din'); if(di) di.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey) sendD(); });
 });
 
 
@@ -5358,7 +5358,7 @@ route('/login', (app)=>{
    הרשמה מאובטחת — חידון נגד בוטים + קוד אימות בן 6 ספרות ל-3 דקות
    ===================================================================== */
 const VERIFY_TTL = 180000; // 3 דקות
-function rand6(){ return String(Math.floor(100000 + Math.random()*900000)); }
+function rand6(){ return String(100000+crypto.getRandomValues(new Uint32Array(1))[0]%900000); }
 function pickQuiz(n=2){
   const pool = BOT_QUIZ.slice();
   const out = [];
@@ -7044,9 +7044,9 @@ route('/404', (app)=>{
 });
 
 /* ===================== ראוטר ===================== */
-let RENDERING = false;
+let RENDERING = false; let _renderPending = false;
 async function render(){
-  if(RENDERING) return; RENDERING = true;
+  if(RENDERING){ _renderPending = true; return; } RENDERING = true; _renderPending = false;
   runCleanup();
   const app = $('#app');
   const hash = (location.hash || '#/').replace(/^#/, '');
@@ -7078,8 +7078,9 @@ async function render(){
         <a class="btn btn-p" href="#/">לדף הבית</a></div></div>`;
   }
   document.title = (PAGE_TITLES[path] ? PAGE_TITLES[path] + ' · ' : '') + SITE.name + ' — ' + SITE.tagline;
-  initReveal();
+  try{ initReveal(); }catch(_){}
   RENDERING = false;
+  if(_renderPending) render();
 }
 const PAGE_TITLES = {
   '/report':'דיווח חדש', '/my':'הפניות שלי', '/track':'מעקב פנייה', '/ticket':'פנייה',
