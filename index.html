@@ -3569,7 +3569,7 @@ route('/ticket', async (app, id)=>{
           <select id="sAs" ${Auth.can('assign')?'':'disabled'}><option value="">לא הוקצה</option>
             ${agents.map(u=>`<option value="${u.id}" ${t.assignedTo===u.id?'selected':''}>${esc(u.name||u.email)} — ${RANKS[u.rank]?.l||''}</option>`).join('')}</select></div>
         <button class="btn btn-p btn-block" id="sSave">${ic('check',16)} שמירת שינויים</button>
-        ${!t.assignedTo ? `<button class="btn btn-ok btn-block" id="sClaim" style="margin-top:8px">${ic('headset',16)} קבלת פנייה</button>`:''}
+        <button class="btn btn-ok btn-block" id="sClaim" style="margin-top:8px">${ic('headset',16)} ${t.assignedTo ? 'העבר אליי' : 'קבלת פנייה'}</button>
       </div>
       <div class="card">
         <div class="card-h"><span class="ico-tile i-gray">${ic('user',19)}</span><h4>פרטי המדווח</h4></div>
