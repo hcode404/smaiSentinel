@@ -1532,6 +1532,20 @@ const Auth = {
   muted(){
     const u = this.user;
     return !!(u?.muteUntil && new Date(u.muteUntil).getTime() > Date.now());
+  },
+  async changePassword(op, np){
+    const u = FB.auth.currentUser;
+    if(!u) throw new Error('לא מחובר');
+    const cred = FB.EmailAuthProvider.credential(u.email, op);
+    await FB.reauthenticateWithCredential(u, cred);
+    await FB.updatePassword(u, np);
+  },
+  async changeEmail(newEmail){
+    const u = FB.auth.currentUser;
+    if(!u) throw new Error('לא מחובר');
+    await FB.updateEmail(u, newEmail);
+    await Store.update('users', this.user.id, { email: newEmail });
+    if(this.user) this.user.email = newEmail;
   }
 };
 
@@ -1552,7 +1566,7 @@ async function initFirebase(){
     onAuthStateChanged:auth.onAuthStateChanged,
     sendPasswordResetEmail:auth.sendPasswordResetEmail,
     sendEmailVerification:auth.sendEmailVerification,
-    updatePassword:auth.updatePassword, signInAnonymously:auth.signInAnonymously
+    updatePassword:auth.updatePassword, updateEmail:auth.updateEmail, reauthenticateWithCredential:auth.reauthenticateWithCredential, EmailAuthProvider:auth.EmailAuthProvider, signInAnonymously:auth.signInAnonymously
   };
   return new Promise(res=>{
     let first = true;
@@ -5688,6 +5702,27 @@ route('/account', async (app)=>{
         <div class="form-group"><label>אישור סיסמה חדשה</label><input type="password" id="newPw2" class="form-control"></div>
         <button id="changePwBtn" class="btn btn-primary mt-2">שנה סיסמה</button>
         <hr>
+        <h5>שינוי כתובת מייל</h5>
+        <p class="text-muted small">כתובת נוכחית: <strong id="curEmailDisp"></strong></p>
+        <button id="startEmailChangeBtn" class="btn btn-outline-secondary btn-sm mt-1">✉️ שנה מייל</button>
+        <div id="emailChangeWrap" style="display:none;margin-top:12px">
+          <div id="ecStep1">
+            <p class="small">שלחנו קוד אימות ל-<strong id="ecCurEmailLbl"></strong></p>
+            <div class="form-group"><label>קוד מהמייל הנוכחי</label><input type="text" id="ecCode1" class="form-control" maxlength="6" placeholder="6 ספרות" inputmode="numeric"></div>
+            <button id="ecVerify1Btn" class="btn btn-primary btn-sm">אמת</button>
+            <button id="ecCancelBtn" class="btn btn-secondary btn-sm mr-2">ביטול</button>
+          </div>
+          <div id="ecStep2" style="display:none">
+            <div class="form-group"><label>כתובת מייל חדשה</label><input type="email" id="ecNewEmailInput" class="form-control" dir="ltr" placeholder="new@email.com"></div>
+            <button id="ecSendOtp2Btn" class="btn btn-primary btn-sm">שלח קוד למייל החדש</button>
+          </div>
+          <div id="ecStep3" style="display:none">
+            <p class="small">שלחנו קוד אימות ל-<strong id="ecNewEmailLbl"></strong></p>
+            <div class="form-group"><label>קוד מהמייל החדש</label><input type="text" id="ecCode2" class="form-control" maxlength="6" placeholder="6 ספרות" inputmode="numeric"></div>
+            <button id="ecVerify2Btn" class="btn btn-primary btn-sm">אמת ושנה מייל</button>
+          </div>
+        </div>
+        <hr>
         <h5>היסטוריית כניסות (5 אחרונות)</h5>
         ${loginHist.length ? loginHist.map(l=>`
           <div class="d-flex gap-3 small text-muted mb-1">
@@ -5716,6 +5751,64 @@ route('/account', async (app)=>{
       }catch(e){toast('שגיאה: '+e.message,'error');}
     });
   }
+    // --- שינוי מייל ---
+    var _ecOtp1="",_ecOtp2="",_ecNewEmail="";
+    var _curEmailDisp=document.getElementById("curEmailDisp");
+    if(_curEmailDisp&&Auth.user) _curEmailDisp.textContent=Auth.user.email||"";
+    var _startECBtn=document.getElementById("startEmailChangeBtn");
+    if(_startECBtn) _startECBtn.addEventListener("click",async function(){
+      var _email=Auth.user&&Auth.user.email;
+      if(!_email){toast("לא מחובר","error");return;}
+      var _b=crypto.getRandomValues(new Uint8Array(6));
+      _ecOtp1=Array.from(_b).map(function(b){return((b%9)+1).toString();}).join("").slice(0,6);
+      document.getElementById("ecCurEmailLbl").textContent=_email;
+      try{
+        await Mail.send({to:_email,subject:"קוד אימות SMAI - שינוי מייל",body:"<p>קוד האימות: <strong style='font-size:22px;letter-spacing:4px'>"+_ecOtp1+"</strong></p><p>תוקף: 5 דקות</p>",force:true});
+        document.getElementById("emailChangeWrap").style.display="block";
+        toast("קוד נשלח למייל הנוכחי","success");
+      }catch(e){toast("שגיאה: "+e.message,"error");}
+    });
+    var _ecV1=document.getElementById("ecVerify1Btn");
+    if(_ecV1) _ecV1.addEventListener("click",function(){
+      var c=(document.getElementById("ecCode1").value||"").trim();
+      if(!c||c!==_ecOtp1){toast("קוד שגוי","error");return;}
+      document.getElementById("ecStep1").style.display="none";
+      document.getElementById("ecStep2").style.display="block";
+    });
+    var _ecCancel=document.getElementById("ecCancelBtn");
+    if(_ecCancel) _ecCancel.addEventListener("click",function(){
+      document.getElementById("emailChangeWrap").style.display="none";
+      ["ecStep1","ecStep2","ecStep3"].forEach(function(id,i){document.getElementById(id).style.display=i===0?"block":"none";});
+      _ecOtp1=_ecOtp2=_ecNewEmail="";
+    });
+    var _ecS2=document.getElementById("ecSendOtp2Btn");
+    if(_ecS2) _ecS2.addEventListener("click",async function(){
+      _ecNewEmail=(document.getElementById("ecNewEmailInput").value||"").trim().toLowerCase();
+      if(!_ecNewEmail||!_ecNewEmail.includes("@")){toast("נא להזין מייל תקין","error");return;}
+      var _b2=crypto.getRandomValues(new Uint8Array(6));
+      _ecOtp2=Array.from(_b2).map(function(b){return((b%9)+1).toString();}).join("").slice(0,6);
+      document.getElementById("ecNewEmailLbl").textContent=_ecNewEmail;
+      try{
+        await Mail.send({to:_ecNewEmail,subject:"קוד אימות SMAI - אישור מייל חדש",body:"<p>קוד לאישור המייל החדש: <strong style='font-size:22px;letter-spacing:4px'>"+_ecOtp2+"</strong></p><p>תוקף: 5 דקות</p>",force:true});
+        document.getElementById("ecStep2").style.display="none";
+        document.getElementById("ecStep3").style.display="block";
+        toast("קוד נשלח למייל החדש","success");
+      }catch(e){toast("שגיאה: "+e.message,"error");}
+    });
+    var _ecV2=document.getElementById("ecVerify2Btn");
+    if(_ecV2) _ecV2.addEventListener("click",async function(){
+      var c2=(document.getElementById("ecCode2").value||"").trim();
+      if(!c2||c2!==_ecOtp2){toast("קוד שגוי","error");return;}
+      try{
+        await Auth.changeEmail(_ecNewEmail);
+        if(_curEmailDisp) _curEmailDisp.textContent=_ecNewEmail;
+        document.getElementById("emailChangeWrap").style.display="none";
+        ["ecStep1","ecStep2","ecStep3"].forEach(function(id,i){document.getElementById(id).style.display=i===0?"block":"none";});
+        _ecOtp1=_ecOtp2=_ecNewEmail="";
+        toast("המייל שונה בהצלחה!","success");
+      }catch(e){toast("שגיאה: "+e.message,"error");}
+    });
+  
 
   function paintPrivacy2(){
     const body = document.getElementById('stBody');
