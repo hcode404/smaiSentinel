@@ -940,7 +940,7 @@ const AVATAR_COLORS = ['#0f6f8c','#7c5cff','#12876f','#b8760b','#c62f42','#2563e
 
 /* ===================== בעלות ומנהל-על ===================== */
 /* החשבון הזה מקבל דרגת "מייסד" אוטומטית בכל התחברות, ויכול למנות צוות. */
-const OWNER_EMAILS = ['minipro.7548@gmail.com','minipro.7548@gamil.com'];
+const OWNER_EMAILS = ['[owner-email]','[owner-email]'];
 const normEmail = e => String(e||'').trim().toLowerCase();
 const isOwnerEmail = e => OWNER_EMAILS.includes(normEmail(e));
 
@@ -1107,7 +1107,13 @@ const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 /* מחרוזת בטוחה לשילוב בתוך '...' בקוד JS שבתוך תכונת HTML */
 const jsq = s => String(s ?? '').replace(/[\\'"<>&\r\n]/g, '').slice(0,120);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const sanitize = (html) => typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html, {ALLOWED_TAGS:['b','i','em','strong','a','br','span','p'], ALLOWED_ATTR:['href','class','style']}) : esc(html);
+const sanitize = (html) => {
+  if(typeof DOMPurify==='undefined') return esc(html);
+  const _c=DOMPurify.sanitize(html,{ALLOWED_TAGS:['b','i','em','strong','a','br','span','p'],ALLOWED_ATTR:['href','class'],FORCE_BODY:true});
+  const _t=document.createElement('div');_t.innerHTML=_c;
+  _t.querySelectorAll('a[href]').forEach(a=>{if(/^javascript:/i.test((a.getAttribute('href')||'').trim()))a.removeAttribute('href');});
+  return _t.innerHTML;
+};
 const _rateLimits = {};
 function rateLimit(key, ms=30000) {
   const now = Date.now();
@@ -1115,7 +1121,7 @@ function rateLimit(key, ms=30000) {
   _rateLimits[key] = now;
   return true;
 }
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,9);
+const uid = () => { const _a=new Uint32Array(2);crypto.getRandomValues(_a);return Date.now().toString(36)+_a[0].toString(36)+_a[1].toString(36); };
 const nowISO = () => new Date().toISOString();
 
 /* ===== Ban Screen ===== */
@@ -1137,7 +1143,7 @@ function showBanScreen(banInfo){
   const tagsEl = document.getElementById('banTags');
   if(tagsEl){
     const tags = [banInfo.reason, banInfo.item].filter(Boolean);
-    tagsEl.innerHTML = tags.map(t=>'<span class="ban-tag">'+t+'</span>').join('');
+    tagsEl.innerHTML = sanitize(tags.map(t=>'<span class="ban-tag">'+esc(t)+'</span>').join(''));
   }
   el.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
@@ -1191,7 +1197,7 @@ const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 function debounce(fn,ms=320){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 function ticketCode(){
   const d = new Date(), y = String(d.getFullYear()).slice(2), m = String(d.getMonth()+1).padStart(2,'0');
-  return `SM-${y}${m}-${String(Math.floor(1000+Math.random()*9000))}`;
+  return `SM-${y}${m}-${String((1000+crypto.getRandomValues(new Uint16Array(1))[0]%9000))}`;
 }
 function fmtDate(iso){
   if(!iso) return '—';
@@ -1251,7 +1257,7 @@ function toast(msg, kind='ok', ms=4200, silent=false){
 }
 function openModal(html, wide=false){
   const m = $('#modal'); m.className = wide ? 'wide' : '';
-  m.innerHTML = html; $('#modalBg').classList.add('open');
+  m.innerHTML = sanitize(html); $('#modalBg').classList.add('open');
   document.body.style.overflow='hidden';
   setTimeout(()=>{ const f = m.querySelector('input,textarea,select,button'); f?.focus(); }, 60);
 }
@@ -1728,7 +1734,7 @@ function moderate(text){
    בלי ספק מוגדר — כל מייל נשמר בתיבת יוצא במערכת ומוצג בפאנל הניהול,
    כך שהאתר עובד במלואו גם לפני שמחברים ספק.
    ===================================================================== */
-const MAIL_DEFAULT = { provider:'worker', from:'minipro.7548@gmail.com', fromName:'SMAI Support', serviceId:'', templateId:'', publicKey:'', endpoint:'https://script.google.com/macros/s/AKfycbwPu3ZznCiHOEyMNy2sIqWqDqGR1k7Mc8PGM_-auN5QtgLoZINPFEsxKOP9h92zW2LD0A/exec', secret:'smai-token-2024' };
+const MAIL_DEFAULT = { provider:'worker', from:'[owner-email]', fromName:'SMAI Support', serviceId:'', templateId:'', publicKey:'', endpoint:'https://script.google.com/macros/s/AKfycbwPu3ZznCiHOEyMNy2sIqWqDqGR1k7Mc8PGM_-auN5QtgLoZINPFEsxKOP9h92zW2LD0A/exec', secret:'smai-token-2024' };
 const Mail = {
   cfg(){ try{ return { ...MAIL_DEFAULT, ...JSON.parse(localStorage.getItem('smai_mail')||'{}') }; }catch(e){ return { ...MAIL_DEFAULT }; } },
   save(c){ localStorage.setItem('smai_mail', JSON.stringify({ ...this.cfg(), ...c })); },
@@ -6602,7 +6608,7 @@ route('/setup', async (app)=>{
     <div class="row" style="gap:10px;margin-bottom:12px">
       <span class="ico-tile i-brand">${ic('mail',22)}</span>
       <div><h2 style="margin:0;font-size:1.2rem">חיבור Gmail — 3 צעדים</h2>
-        <p class="small mute" style="margin:3px 0 0">מיילים דרך Google Apps Script מ-minipro.7548@gmail.com</p></div>
+        <p class="small mute" style="margin:3px 0 0">מיילים דרך Google Apps Script מ-[owner-email]</p></div>
     </div>
     <div class="steps">
       <div class="step"><h4>1. פתחו Apps Script</h4>
@@ -6766,10 +6772,10 @@ rankLvl: 70</pre></div>
   if(gqs) gqs.onclick=()=>{
     const url=($('#gasQuickUrl').value||'').trim();
     if(!url||!url.startsWith('https://')) return toast('נא להזין URL תקין שמתחיל ב-https://','warn');
-    Mail.save({ provider:'worker', endpoint:url, from:'minipro.7548@gmail.com', fromName:'SMAI', secret:'smai-token-2024' });
+    Mail.save({ provider:'worker', endpoint:url, from:'[owner-email]', fromName:'SMAI', secret:'smai-token-2024' });
     toast('מערכת המיילים חוברה! שולחים מייל בדיקה...','ok');
     setTimeout(async()=>{
-      const r=await Mail.send({to:'minipro.7548@gmail.com',toName:'SMAI Admin',subject:'בדיקת מערכת',body:'מערכת השליחה עובדת נכון.',kind:'',force:true});
+      const r=await Mail.send({to:'[owner-email]',toName:'SMAI Admin',subject:'בדיקת מערכת',body:'מערכת השליחה עובדת נכון.',kind:'',force:true});
       toast(r.ok?'מייל בדיקה נשלח!':'החיבור נשמר אך בדקו URL',r.ok?'ok':'warn');
       render();
     },400);
@@ -7158,7 +7164,7 @@ function initMailDefaults(){
   try{
     const ex=JSON.parse(localStorage.getItem('smai_mail')||'{}');
     if(ex.provider&&ex.provider!=='none') return;
-    localStorage.setItem('smai_mail',JSON.stringify({from:'minipro.7548@gmail.com',fromName:'SMAI Support',secret:'smai-token-2024',provider:'worker',endpoint:'https://script.google.com/macros/s/AKfycbwPu3ZznCiHOEyMNy2sIqWqDqGR1k7Mc8PGM_-auN5QtgLoZINPFEsxKOP9h92zW2LD0A/exec',serviceId:'',templateId:'',publicKey:''}));
+    localStorage.setItem('smai_mail',JSON.stringify({from:'[owner-email]',fromName:'SMAI Support',secret:'smai-token-2024',provider:'worker',endpoint:'https://script.google.com/macros/s/AKfycbwPu3ZznCiHOEyMNy2sIqWqDqGR1k7Mc8PGM_-auN5QtgLoZINPFEsxKOP9h92zW2LD0A/exec',serviceId:'',templateId:'',publicKey:''}));
   }catch(e){}
 }
 function initMobileTilt(){
