@@ -7266,7 +7266,7 @@ function initMobileTilt(){
     }
   }} catch(e){ console.warn('update check failed',e); }
   try{ window.__SRV_CACHE = await Store.list('servers'); }catch(e){}
-  window.addEventListener('hashchange', ()=>{ window.scrollTo({top:0,behavior:'instant'}); render(); });
+  window.addEventListener('hashchange', ()=>{ location.reload(); });
   if(!location.hash) location.hash = '#/';
   await render();
   document.body.classList.add('ready');
