@@ -14,25 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-<!--
-=========================================================================================
-  SMAI — אתר יחיד לקובץ אחד. מתאים להעלאה ישירה ל-GitHub Pages.
-  ---------------------------------------------------------------------------------------
-  התקנה מהירה (5 דקות):
-  1) העלה את הקובץ הזה לריפו ב-GitHub בשם index.html
-     Settings ← Pages ← Source: Deploy from a branch ← Branch: main / (root)
-  2) צור פרויקט ב-https://console.firebase.google.com
-     - Build ← Firestore Database ← Create database (Production mode, אזור eur3/europe-west)
-     - Build ← Authentication ← Sign-in method ← Email/Password ← Enable
-     - Project settings ← General ← Your apps ← Web app (</>) ← העתק את firebaseConfig
-  3) הדבק את הערכים ב-FIREBASE_CONFIG שבתחילת הסקריפט למטה.
-  4) פתח באתר את הכתובת  #/setup  ← העתק משם את חוקי האבטחה והדבק ב-Firestore ← Rules.
-  5) הירשם באתר, ואז ב-Firestore פתח את users/{uid} שלך ושנה rank ל-"founder" ו-rankLvl ל-70.
-     מכאן והלאה אפשר לנהל את כל הדרגות והצוות מתוך פאנל הניהול (#/admin).
 
-  ללא הדבקת config — האתר רץ במצב דמו מקומי (localStorage) כדי שתוכל לבדוק הכל בלי שרת.
-=========================================================================================
--->
 
 <style>
 /* ============================ מערכת עיצוב ============================ */
@@ -774,6 +756,10 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{
 .ban-appeal-submit{background:#102040;color:#6af;border:1px solid #1a4080;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700;font-family:inherit;font-size:.83rem}
 .ban-appeal-submit:hover{background:#152850}
 </style>
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.googleapis.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://script.google.com;">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 </head>
 <!-- Ban Screen -->
 <div id="banScreen" class="hidden" role="alertdialog" aria-modal="true">
@@ -1121,6 +1107,14 @@ const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 /* מחרוזת בטוחה לשילוב בתוך '...' בקוד JS שבתוך תכונת HTML */
 const jsq = s => String(s ?? '').replace(/[\\'"<>&\r\n]/g, '').slice(0,120);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const sanitize = (html) => typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html, {ALLOWED_TAGS:['b','i','em','strong','a','br','span','p'], ALLOWED_ATTR:['href','class','style']}) : esc(html);
+const _rateLimits = {};
+function rateLimit(key, ms=30000) {
+  const now = Date.now();
+  if (_rateLimits[key] && now - _rateLimits[key] < ms) return false;
+  _rateLimits[key] = now;
+  return true;
+}
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,9);
 const nowISO = () => new Date().toISOString();
 
@@ -1158,6 +1152,7 @@ async function submitBanAppeal(){
   if(btn){ btn.disabled=true; btn.textContent='שולח...'; }
   try{
     const u = Auth.user;
+    if (!rateLimit('appeal_' + (Auth.user?.id||'anon'), 300000)) return toast('ממתין 5 דקות בין ערעורים','warn');
     await Store.add('appeals',{
       userId:u?.id||null, userName:u?.name||u?.email||'',
       text:txt, banReason:u?.banReason||'',
@@ -1180,7 +1175,7 @@ async function smaiAIReply(ticketId,triggerText){
   const ph=await Store.add('messages',{ticketId,senderId:null,senderName:'SMAI AI',senderRank:'ai',staffSide:true,text:'חושב...',internal:false,system:false,createdAt:nowISO()}).catch(()=>null);
   if(!ph) return;
   try{
-    const apiKey=localStorage.getItem('smai_ai_key')||'';
+    const apiKey=sessionStorage.getItem('smai_ai_key')||'';
     if(!apiKey){ await Store.update('messages',ph.id,{text:'כדי להשתמש ב-@AI הגדר מפתח Gemini API בהגדרות (מפתח: smai_ai_key ב-localStorage).'}); return; }
     const msgs=await Store.list('messages').catch(()=>[]);
     const ctx=msgs.filter(m=>m.ticketId===ticketId&&!m.internal).slice(-8).map(m=>(m.senderName||'משתמש')+': '+m.text).join('\n');
@@ -4368,6 +4363,7 @@ function reportMessageModal(msg, serverId){
     const violation = auto.violation || meta.sev >= 3;
     const action = !violation ? 'none' : sev>=4 ? 'escalate' : sev===3 ? 'delete_mute' : sev===2 ? 'delete_warn' : 'review';
 
+    if (!rateLimit('report_' + (Auth.user?.id||'anon'), 60000)) return toast('המתן דקה לפני שליחה נוספת','warn');
     await Store.add('reports', { type:'message', msgId:msg.id, server:serverId,
       targetId:msg.senderId, targetName:msg.senderName, text:String(msg.text||'').slice(0,500),
       cat, catLabel:meta.l, details:det, byId:Auth.user?.id||null, byName:Auth.user?.name||'אנונימי',
@@ -6591,6 +6587,7 @@ service cloud.firestore {
 }`;
 
 route('/setup', async (app)=>{
+  if (Auth.user && Auth.user.rankLvl < 70) { location.hash = '#/'; return; }
   const admin = Auth.can('siteConfig');
   const counts = admin ? await (async ()=>{
     const [t,u,r,c] = await Promise.all([Store.list('tickets'),Store.list('users'),Store.list('reports'),Store.list('cmsgs')]);
@@ -7285,25 +7282,7 @@ function initMobileTilt(){
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-<!--
-=========================================================================================
-  SMAI — אתר יחיד לקובץ אחד. מתאים להעלאה ישירה ל-GitHub Pages.
-  ---------------------------------------------------------------------------------------
-  התקנה מהירה (5 דקות):
-  1) העלה את הקובץ הזה לריפו ב-GitHub בשם index.html
-     Settings ← Pages ← Source: Deploy from a branch ← Branch: main / (root)
-  2) צור פרויקט ב-https://console.firebase.google.com
-     - Build ← Firestore Database ← Create database (Production mode, אזור eur3/europe-west)
-     - Build ← Authentication ← Sign-in method ← Email/Password ← Enable
-     - Project settings ← General ← Your apps ← Web app (</>) ← העתק את firebaseConfig
-  3) הדבק את הערכים ב-FIREBASE_CONFIG שבתחילת הסקריפט למטה.
-  4) פתח באתר את הכתובת  #/setup  ← העתק משם את חוקי האבטחה והדבק ב-Firestore ← Rules.
-  5) הירשם באתר, ואז ב-Firestore פתח את users/{uid} שלך ושנה rank ל-"founder" ו-rankLvl ל-70.
-     מכאן והלאה אפשר לנהל את כל הדרגות והצוות מתוך פאנל הניהול (#/admin).
 
-  ללא הדבקת config — האתר רץ במצב דמו מקומי (localStorage) כדי שתוכל לבדוק הכל בלי שרת.
-=========================================================================================
--->
 
 <style>
 /* ============================ מערכת עיצוב ============================ */
@@ -8451,7 +8430,7 @@ async function smaiAIReply(ticketId,triggerText){
   const ph=await Store.add('messages',{ticketId,senderId:null,senderName:'SMAI AI',senderRank:'ai',staffSide:true,text:'חושב...',internal:false,system:false,createdAt:nowISO()}).catch(()=>null);
   if(!ph) return;
   try{
-    const apiKey=localStorage.getItem('smai_ai_key')||'';
+    const apiKey=sessionStorage.getItem('smai_ai_key')||'';
     if(!apiKey){ await Store.update('messages',ph.id,{text:'כדי להשתמש ב-@AI הגדר מפתח Gemini API בהגדרות (מפתח: smai_ai_key ב-localStorage).'}); return; }
     const msgs=await Store.list('messages').catch(()=>[]);
     const ctx=msgs.filter(m=>m.ticketId===ticketId&&!m.internal).slice(-8).map(m=>(m.senderName||'משתמש')+': '+m.text).join('\n');
