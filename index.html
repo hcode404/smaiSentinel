@@ -2890,7 +2890,7 @@ const Servers = {
     if(ch?.staffOnly) return isStaffUser(u);
     return true;
   },
-  newInvite(){ return Array.from({length:6}, ()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*31)]).join(''); },
+  newInvite(){ return Array.from({length:6}, ()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[crypto.getRandomValues(new Uint8Array(1))[0]%31]).join(''); },
   async join(srv){
     const me = Auth.user; if(!me) throw new Error('צריך להתחבר');
     if(srv.seed) return true;
