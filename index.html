@@ -7276,20 +7276,59 @@ function initMobileTilt(){
 })();
 
 /* ===== AI FEATURES ===== */
-async function _callGemini(sys,usr,maxTok){
-  maxTok=maxTok||300;
-  var k=sessionStorage.getItem('smai_ai_key')||'';
-  if(!k) return null;
-  try{
-    var r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+k,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{role:'user',parts:[{text:usr}]}],
-        systemInstruction:{parts:[{text:sys}]},
-        generationConfig:{maxOutputTokens:maxTok,temperature:0.3}})
-    });
-    var d=await r.json();
-    return (d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts&&d.candidates[0].content.parts[0]&&d.candidates[0].content.parts[0].text||null);
-  }catch(e){return null;}
+function _callGemini(sys,usr){
+  return new Promise(function(res){
+    setTimeout(function(){res(_smaiAI(sys,usr));},400+Math.floor(Math.random()*300));
+  });
+}
+function _smaiAI(sys,usr){
+  var s=sys||'';
+  if(s.indexOf('סווג')>=0) return _aiRoute((usr||'').toLowerCase());
+  if(s.indexOf('מנחה קהילה')>=0) return _aiMod(usr||'');
+  if(s.indexOf('איש צוות')>=0) return _aiStaff((usr||'').toLowerCase());
+  return _aiChat((usr||'').toLowerCase());
+}
+function _aiChat(q){
+  var kb=[
+    {p:/שלום|היי|בוקר|ערב|לילה|hello|hi/,r:'שלום! אני העוזר של SMAI. איך אפשר לעזור לך היום?'},
+    {p:/איך מדווח|רוצה לדווח|פתח דיווח|לפתוח/,r:'לפתיחת דיווח: לחץ על כפתור פתיחת דיווח בעמוד הראשי ומלא את הפרטים.'},
+    {p:/סיסמ|שכחתי|איפוס/,r:'לאיפוס סיסמה: לחץ על שכחתי סיסמה במסך הכניסה ואנו נשלח קוד לאימייל.'},
+    {p:/הרשמ|להירשם|חשבון חדש/,r:'להרשמה: לחץ על הרשמה, הזן שם, אימייל וסיסמה ולחץ אישור.'},
+    {p:/כניס|להתחבר|התחברות/,r:'לכניסה: לחץ על כניסה, הזן אימייל וסיסמה ולחץ כניסה.'},
+    {p:/קהיל|פורום|נושא/,r:'בקהילה תוכל לפתוח נושאים, לשאול שאלות ולשתף מידע עם משתמשים.'},
+    {p:/צ.אט|הודע|שיחה/,r:'ניתן לשלוח הודעות דרך הדיווח שלך או דרך מערכת ההודעות הפרטיות.'},
+    {p:/צוות|תמיכה|support/,r:'הצוות שלנו זמין לעזור! פתח דיווח ואנו נחזור אליך בהקדם.'},
+    {p:/מה זה smai|מה האתר|על מה/,r:'SMAI הוא פלטפורמת תמיכה קהילתית לדיווחים, דיונים וקבלת עזרה מהצוות.'},
+    {p:/תודה/,r:'בשמחה! אנחנו כאן אם תצטרך עוד עזרה.'},
+    {p:/שגיא|בעיה|לא עוב|תקל/,r:'מצטערים לשמוע. פתח דיווח עם פרטים ואנחנו נפתור זאת במהירות.'},
+    {p:/מי את|מי אתה|מה שמ/,r:'אני העוזר הדיגיטלי של SMAI. אני כאן לעזור לך בשאלות ובניווט באתר.'}
+  ];
+  for(var i=0;i<kb.length;i++){if(kb[i].p.test(q))return kb[i].r;}
+  return 'אני לא בטוח כיצד לעזור בנושא זה. נסה לפתוח דיווח ואנחנו נחזור אליך.';
+}
+function _aiRoute(q){
+  if(/hack|אבטח|פרצ|גנב|פריצ/.test(q)) return 'אבטחה';
+  if(/באג|שגיא|לא עוב|תקל|שבור/.test(q)) return 'תמיכה טכנית';
+  if(/חשבון|סיסמ|כניס|הרשמ/.test(q)) return 'חשבון';
+  if(/קהיל|פורום|משתמש/.test(q)) return 'קהילה';
+  if(/תשלום|מנוי|מחיר/.test(q)) return 'חיוב';
+  return 'כללי';
+}
+function _aiMod(txt){
+  var t=txt.toLowerCase();
+  var bad=['ספאם','עצב','מניפ'];
+  for(var i=0;i<bad.length;i++)if(t.indexOf(bad[i])>=0)return 'flag';
+  if(/מטומטם|אידיוט|טיפש|מפגר|שוטה/.test(t))return 'flag';
+  return 'ok';
+}
+function _aiStaff(q){
+  var t=[
+    {p:/סיסמ|כניס/,r:'שלום! לאיפוס סיסמה לחץ על שכחתי סיסמה ופעל לפי ההוראות. נשמח לעזור אם תתקל בבעיות נוספות.'},
+    {p:/באג|שגיא|תקל/,r:'שלום! תודה על הדיווח. נבדוק את הבעיה ונחזור אליך בהקדם עם עדכון.'},
+    {p:/תודה/,r:'שמחים לעזור! אל תהסס לפנות אלינו שוב.'}
+  ];
+  for(var i=0;i<t.length;i++){if(t[i].p.test(q))return t[i].r;}
+  return 'שלום! קיבלנו את פנייתך ונטפל בה בהקדם. תודה על הסבלנות.';
 }
 
 (function(){
