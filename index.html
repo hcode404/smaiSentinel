@@ -3375,10 +3375,8 @@ route('/report', (app)=>{
         var _aiAns = _aiStaff(_aid);
         await Store.add('messages', {
           ticketId: t.id, senderId: 'ai-system', senderName: 'עוזר SMAI',
-          senderRank: 'ai', text: _aiAns + '
-
-ניתוב אוטומטי: ' + _aiDept,
-          internal: false, autoReply: true, createdAt: nowISO()
+          senderRank: 'ai', text: _aiAns + ' - ניתוב: ' + _aiDept,
+          internal:false, autoReply:true, createdAt:nowISO()
         });
       } catch (_ae) {}
 
