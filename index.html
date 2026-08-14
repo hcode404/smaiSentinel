@@ -3413,8 +3413,8 @@ route('/ticket', async (app, id)=>{
           <textarea id="msgIn" placeholder="כתיבת הודעה... (Enter לשליחה)"></textarea>
           <button class="btn btn-p" id="msgBtn" style="height:48px">${ic('send',17)}</button>
         </div>
-        ${staff?\`<label class="check" style="margin-top:10px"><input type="checkbox" id="msgInt">
-          <span><span class="t">הערה פנימית</span><span class="d">נראית לצוות בלבד — לא למדווח.</span></span></label>\`:''}`}
+        ${staff?`<label class="check" style="margin-top:10px"><input type="checkbox" id="msgInt">
+          <span><span class="t">הערה פנימית</span><span class="d">נראית לצוות בלבד — לא למדווח.</span></span></label>`:''}`}
       </div>
     </div>
 
