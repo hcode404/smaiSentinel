@@ -3783,9 +3783,9 @@ route('/ticket', async (app, id)=>{
     $('#sSave').onclick = async ()=>{
       const as = $('#sAs').value;
       const u = agents.find(x=>x.id===as);
-      await const _nSt = $('#sSt').value;
+      const _nSt = $('#sSt').value;
         const _clf = (['closed','resolved'].includes(_nSt)) ? {closedBy: Auth.user?.name||Auth.user?.email||'צוות', closedAt: nowISO()} : {};
-        Store.update('tickets', id, { status:_nSt, priority:$('#sPr').value,
+        await Store.update('tickets', id, { status:_nSt, priority:$('#sPr').value,
         dept:$('#sDp').value, assignedTo: as||null, assignedName: u? (u.name||u.email):'', updatedAt: nowISO(), ..._clf });
       await Store.add('messages', { ticketId:id, system:true, senderId:null,
         text:`${Auth.user.name} עדכן את הפנייה: סטטוס ${STATUS[$('#sSt').value].l}, עדיפות ${PRIO[$('#sPr').value].l}${u?`, שויך ל${u.name||u.email}`:''}`,
