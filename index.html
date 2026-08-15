@@ -3494,9 +3494,9 @@ route('/my', async (app)=>{
       <div>לא מחוברים. <a href="#/login">התחברו</a> כדי לראות את הפניות שלכם מכל מכשיר.</div></div>`:''}
     ${body}`;
   // tab switching
-  $('#myTabs button').forEach(btn => {
+  $$('#myTabs button').forEach(btn => {
     btn.onclick = () => {
-      $('#myTabs button').forEach(b => b.classList.remove('on'));
+      $$('#myTabs button').forEach(b => b.classList.remove('on'));
       btn.classList.add('on');
       const tb = btn.dataset.tab;
       if($('#myActive')) $('#myActive').style.display = tb==='active' ? '' : 'none';
