@@ -2326,7 +2326,7 @@ StopNCII.org לבגירים ו-Take It Down של NCMEC לקטינים יוצרי
 
 **מתי מגישים תלונה**
 כשיש איום, סחיטה, תוכן מיני של קטין או פגיעה חוזרת. פונים לתחנת משטרה, ובמצב סכנה מיידית מתקשרים ל-100. הביאו את התיעוד מסודר מראש — זה מקצר את התהליך משמעותית.` },
-  { id:'a-partnership', cat:'info', title:'שיתופי פעולה עם SMAI', date:'2025-01-01', author:'צוות SMAI', body:`SMAI פתוחה לשיתופי פעולה עם קהילות, יוצרי תוכן ואנשי מקצוע בתחום ה-AI.
+  { id:'a-partnership', dept:'other', sum:'SMAI פתוחה לשיתופי פעולה עם קהילות, יוצרי תוכן ומומחים. פרטים על התוכנית וכיצד להצטרף.', read:3, tags:['שיתוף פעולה','SMAI','קהילה'], title:'שיתופי פעולה עם SMAI', date:'2025-01-01', author:'צוות SMAI', body:`SMAI פתוחה לשיתופי פעולה עם קהילות, יוצרי תוכן ואנשי מקצוע בתחום ה-AI.
 
 **מה אנחנו מחפשים?**
 - קהילות פעילות בתחום הבינה המלאכותית
@@ -2339,7 +2339,7 @@ StopNCII.org לבגירים ו-Take It Down של NCMEC לקטינים יוצרי
 - תמיכה מלאה מצוות SMAI
 
 לפרטים ויצירת קשר, פתחו פנייה ובחרו בנושא 'שיתוף פעולה'.` },
-  { id:'a-trusted-reporter', cat:'info', title:'מדווח מהימן — מה זה ואיך מגישים', date:'2025-01-01', author:'צוות SMAI', body:`## מה זה מדווח מהימן?
+  { id:'a-trusted-reporter', dept:'other', sum:'תג מיוחד לחברי קהילה שמדווחים בצורה עקבית ואחראית. יתרונות התוכנית, קריטריונים ואיך מגישים מועמדות.', read:4, tags:['מדווח מהימן','SMAI','קהילה'], title:'מדווח מהימן — מה זה ואיך מגישים', date:'2025-01-01', author:'צוות SMAI', body:`## מה זה מדווח מהימן?
 
 תוכנית **מדווח מהימן** של SMAI היא מסגרת מיוחדת לחברי קהילה שמדווחים על תכנים פוגעניים ברשת בצורה עקבית, מדויקת ואחראית. המטרה היא לבנות שכבת הגנה אנושית נוספת לצד הצוות המקצועי שלנו.
 
@@ -2426,7 +2426,7 @@ const NAV = [
   { p:'#/report',    l:'פתיחת דיווח', ico:'shield-alert' },
   { p:'#/my',        l:'הפניות שלי',  ico:'file' },
   { p:'#/track',     l:'מעקב פנייה',  ico:'search' },
-  { p:'#/articles',  l:'מדריכים',     ico:'book' },
+  { p:'#/articles',  l:'מדריכים ומאמרים', ico:'book' },
   { p:'#/community', l:'קהילה',       ico:'message' },
   { p:'#/dm',        l:'הודעות פרטיות', ico:'send' },
   { p:'#/friends',   l:'חברים',       ico:'users' },
@@ -2485,7 +2485,7 @@ function renderFooter(){
         <li><a href="#/report">פתיחת דיווח חדש</a></li><li><a href="#/track">מעקב לפי קוד</a></li>
         <li><a href="#/my">הפניות שלי</a></li></ul></div>
       <div><h4>ידע</h4><ul>
-        <li><a href="#/articles">מדריכים</a></li><li><a href="#/community">קהילה</a></li>
+        <li><a href="#/articles">מדריכים ומאמרים</a></li><li><a href="#/community">קהילה</a></li>
         <li><a href="#/join">הצטרפות לצוות</a></li></ul></div>
       <div><h4>מידע</h4><ul>
         <li><a href="#/terms">תנאי שימוש</a></li><li><a href="#/privacy">מדיניות פרטיות</a></li>
@@ -3193,7 +3193,7 @@ route('/', async (app)=>{
         אפשר לדווח בעילום שם, ואפשר להשאיר פרטים ולקבל ליווי אישי. בשני המקרים — אנחנו קוראים הכל.</p>
       <div class="row" style="justify-content:center">
         <a class="btn btn-g btn-lg" href="#/report">${ic('shield-alert',19)} פתיחת דיווח עכשיו</a>
-        <a class="btn btn-ghost btn-lg" href="#/articles" style="color:#fff;border:1px solid rgba(255,255,255,.4)">למדריכים</a>
+        <a class="btn btn-ghost btn-lg" href="#/articles" style="color:#fff;border:1px solid rgba(255,255,255,.4)">למדריכים ומאמרים</a>
       </div>
     </div>
   </section>`;
@@ -3860,8 +3860,8 @@ route('/articles', async (app)=>{
   const extra = await Store.list('articles');
   const all = [...SEED_ARTICLES, ...extra];
   app.innerHTML = `
-  <div class="page-h anim-up"><div class="eyebrow">מרכז הידע</div><h1>מדריכים מעשיים</h1>
-    <p>כתבנו את המדריכים האלה מתוך פניות אמיתיות. כל אחד מהם עונה על שאלה שקיבלנו עשרות פעמים.</p></div>
+  <div class="page-h anim-up"><div class="eyebrow">מרכז הידע</div><h1>מדריכים ומאמרים</h1>
+    <p>מדריכים מעשיים מתוך פניות אמיתיות, ומאמרים על SMAI, שיתופי פעולה ותוכנית המדווחים שלנו.</p></div>
   <div class="row anim-up d1" style="margin-bottom:22px" id="aFilters">
     <button class="chip on" data-d="">הכל</button>
     ${DEPTS.map(d=>`<button class="chip" data-d="${d.id}">${esc(d.short)}</button>`).join('')}
