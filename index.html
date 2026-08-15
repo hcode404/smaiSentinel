@@ -3770,8 +3770,8 @@ route('/ticket', async (app, id)=>{
     }
     finally{ inp.disabled = false; inp.focus(); }
   };
-  $('#msgBtn').onclick = send;
-  $('#msgIn').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+  const _mb=$('#msgBtn'); if(_mb) _mb.onclick=send;
+  const _mi=$('#msgIn'); if(_mi) _mi.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} });
   // ===== @mention autocomplete =====
   (()=>{
     const mInp = $('#msgIn'), mList = $('#mentionList');
