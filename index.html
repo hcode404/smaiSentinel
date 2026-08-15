@@ -2325,7 +2325,34 @@ StopNCII.org לבגירים ו-Take It Down של NCMEC לקטינים יוצרי
 בוואטסאפ אפשר "ייצוא צ׳אט" מתוך תפריט השיחה, וזה מפיק קובץ טקסט עם חותמות זמן — ראיה חזקה בהרבה מצילום מסך בודד.
 
 **מתי מגישים תלונה**
-כשיש איום, סחיטה, תוכן מיני של קטין או פגיעה חוזרת. פונים לתחנת משטרה, ובמצב סכנה מיידית מתקשרים ל-100. הביאו את התיעוד מסודר מראש — זה מקצר את התהליך משמעותית.` }
+כשיש איום, סחיטה, תוכן מיני של קטין או פגיעה חוזרת. פונים לתחנת משטרה, ובמצב סכנה מיידית מתקשרים ל-100. הביאו את התיעוד מסודר מראש — זה מקצר את התהליך משמעותית.` },
+  { id:'a-partnership', cat:'info', title:'שיתופי פעולה עם SMAI', date:'2025-01-01', author:'צוות SMAI', body:`SMAI פתוחה לשיתופי פעולה עם קהילות, יוצרי תוכן ואנשי מקצוע בתחום ה-AI.
+
+**מה אנחנו מחפשים?**
+- קהילות פעילות בתחום הבינה המלאכותית
+- יוצרי תוכן עם קהל רלוונטי
+- מומחים שרוצים לשתף ידע
+
+**מה אנחנו מציעים?**
+- אזכור בפלטפורמה ובערוצי הקהילה
+- גישה לכלים וחומרים בלעדיים
+- תמיכה מלאה מצוות SMAI
+
+לפרטים ויצירת קשר, פתחו פנייה ובחרו בנושא 'שיתוף פעולה'.` },
+  { id:'a-trusted-reporter', cat:'info', title:'מדווח מהימן — מה זה ואיך מגישים', date:'2025-01-01', author:'צוות SMAI', body:`תג **מדווח מהימן** ניתן לחברי קהילה שמדווחים בצורה עקבית, מדויקת ואחראית.
+
+**יתרונות התג:**
+- הדיווחים שלכם מקבלים עדיפות בטיפול
+- גישה לסטטוס מהיר על דיווחים
+- תג מיוחד לצד השם בקהילה
+
+**קריטריונים לקבלת התג:**
+- לפחות 5 דיווחים שנסגרו כ'תקין' או 'טופל'
+- אין היסטוריה של דיווחי שווא
+- חשבון פעיל לפחות חודש
+
+**איך מגישים בקשה?**
+פתחו פנייה חדשה, בחרו בנושא 'בקשת מעמד מדווח מהימן', וצרפו קישורים לדיווחים הקיימים שלכם. הצוות יבדוק תוך 7 ימי עסקים.` }
 ];
 
 const SEED_SERVERS = [
@@ -2971,7 +2998,7 @@ const Friends = {
       from: me.id, fromName: me.name || me.email, to: other, toName: otherName || '',
       status: 'pending', createdAt: nowISO()
     };
-    if(FB && !FB.auth.currentUser){ try{ await FB.signInAnonymously(FB.auth); }catch(_){} }
+    if(FB && !FB.auth.currentUser){ try{ await new Promise((res,rej)=>{const unsub=FB.auth.onAuthStateChanged(u=>{unsub();res();});setTimeout(res,2000);FB.signInAnonymously(FB.auth).catch(rej);}); }catch(_){} }
     if(FB && FB.auth.currentUser) await FB.auth.currentUser.getIdToken(true).catch(()=>{});
     const id = await Store.add('friends', rec);
     Sfx.play('pop');
@@ -3455,15 +3482,27 @@ route('/my', async (app)=>{
   const local = JSON.parse(localStorage.getItem('smai_codes')||'[]');
   const all = await Store.list('tickets');
   const mine = all.filter(t => (Auth.user && t.reporterId === Auth.user.id) || local.some(c=>c.id===t.id));
-  const body = mine.length
-    ? `<div class="stack">${mine.map((t,i)=>ticketRow(t,i)).join('')}</div>`
-    : emptyState('file','עדיין אין פניות','כשתפתחו דיווח הוא יופיע כאן, יחד עם הסטטוס וההתכתבות עם הנציג.',
-        `<a class="btn btn-p" href="#/report">${ic('plus',16)} פתיחת דיווח</a>`);
+  const TWO_DAYS_MS = 2*24*60*60*1000, TWO_YEARS_MS = 2*365*24*60*60*1000, _now = Date.now();
+  const _isClosed = t => t.status==='closed'||t.status==='resolved';
+  const _closedTs = t => t.closedAt ? new Date(t.closedAt).getTime() : new Date(t.updatedAt||t.createdAt||0).getTime();
+  const activeTickets = mine.filter(t => !_isClosed(t) || (_now - _closedTs(t)) < TWO_DAYS_MS);
+  const closedTickets = mine.filter(t => _isClosed(t) && (_now - _closedTs(t)) < TWO_YEARS_MS);
+  const body = `<div id="myTabs" style="display:flex;gap:8px;margin-bottom:16px"><button class="btn on" data-tab="active">פתוחות (${activeTickets.length})</button><button class="btn" data-tab="closed">נסגרו (${closedTickets.length})</button></div><div id="myActive">${activeTickets.length ? '<div class="stack">'+activeTickets.map((t,i)=>ticketRow(t,i)).join('')+'</div>' : emptyState('file','אין פניות פתוחות','כשתפתחו דיווח הוא יופיע כאן.',`<a class="btn btn-p" href="#/report">${ic('plus',16)} פתיחת דיווח</a>`)}</div><div id="myClosed" style="display:none">${closedTickets.length ? '<div class="stack">'+closedTickets.map((t,i)=>ticketRow(t,i)).join('')+'</div>' : emptyState('file','אין פניות סגורות','פניות סגורות יופיעו כאן עד שנתיים.','')}</div>`;
   app.innerHTML = `<div class="page-h anim-up"><div class="eyebrow">מעקב</div><h1>הפניות שלי</h1>
     <p>כל הפניות שפתחתם מהדפדפן הזה, ומהחשבון שלכם אם התחברתם.</p></div>
     ${!Auth.user?`<div class="callout c-info" style="margin-bottom:20px"><span class="ic">${ic('info',18)}</span>
       <div>לא מחוברים. <a href="#/login">התחברו</a> כדי לראות את הפניות שלכם מכל מכשיר.</div></div>`:''}
     ${body}`;
+  // tab switching
+  $('#myTabs button').forEach(btn => {
+    btn.onclick = () => {
+      $('#myTabs button').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const tb = btn.dataset.tab;
+      if($('#myActive')) $('#myActive').style.display = tb==='active' ? '' : 'none';
+      if($('#myClosed')) $('#myClosed').style.display = tb==='closed' ? '' : 'none';
+    };
+  });
 });
 function ticketRow(t, i=0){
   return `<a class="tk p-${t.priority||'normal'} anim-up" style="animation-delay:${Math.min(i*45,400)}ms" href="#/ticket/${t.id}">
@@ -3556,14 +3595,15 @@ route('/ticket', async (app, id)=>{
           <div style="flex:1"><h3 style="margin:0">התכתבות</h3>
           <div class="tiny mute">${staff?'הודעות פנימיות מסומנות ולא נראות למדווח':'הצוות יראה את ההודעות שלכם כאן'}</div></div></div>
         <div class="chat" id="chat">${loader()}</div>
-        <div class="composer" style="position:relative">
+        ${(t.status==='closed'||t.status==='resolved')
+          ? `<div class="card" style="background:var(--bg2);color:var(--muted);text-align:center;padding:12px 16px;margin-top:12px;border-radius:8px">🔒 הפנייה נסגרה${t.closedBy?' על ידי <strong>'+esc(t.closedBy)+'</strong>':''}${t.closedAt?' · '+fmtDate(t.closedAt):''}</div>`
+          : `<div class="composer" style="position:relative">
           <div id="mentionList" class="mention-list"></div>
           <textarea id="msgIn" placeholder="כתיבת הודעה... (Enter לשליחה)"></textarea>
           <button class="btn btn-p" id="msgBtn" style="height:48px">${ic('send',17)}</button>
         </div>
-        ${staff?`<label class="check" style="margin-top:10px"><input type="checkbox" id="msgInt">
-          <span><span class="t">הערה פנימית</span><span class="d">נראית לצוות בלבד — לא למדווח.</span></span></label>`:''}
-      </div>
+        ${staff?\`<label class="check" style="margin-top:10px"><input type="checkbox" id="msgInt">
+          <span><span class="t">הערה פנימית</span><span class="d">נראית לצוות בלבד — לא למדווח.</span></span></label>\`:''}\n`}      </div>
     </div>
 
     <aside class="stack anim-up d2">
@@ -3642,7 +3682,7 @@ route('/ticket', async (app, id)=>{
           <div class="tm">${fmtTime(m.createdAt)} · ${fmtDate(m.createdAt)}</div></div></div>`;
       return `<div class="msg ${mine?'mine':''} ${m.internal?'int':''}">
         ${avatar({id:m.senderId,name:m.senderName},'s')}
-        <div class="bub"><div class="who">${esc(m.senderName||'משתמש')} ${rankBadge(m.senderRank)}
+        <div class="bub"><div class="who">${esc(m.senderName||'משתמש')} ${rankBadge(m.senderRank)}${m.verified ? '<span class="b b-ok" style="font-size:10px">✓ מאומת</span>' : ''}
           ${m.internal?'<span class="b b-warn">פנימי</span>':''}</div>
           <div class="txt">${esc(m.text)}</div>
           <div class="tm">${fmtTime(m.createdAt)} · ${fmtDate(m.createdAt)}</div></div></div>`;
@@ -3656,11 +3696,11 @@ route('/ticket', async (app, id)=>{
     const internal = staff && $('#msgInt')?.checked;
     inp.value = ''; inp.disabled = true;
     // ensure Firebase Auth token exists for Firestore rules
-    if(FB && !FB.auth.currentUser){ try{ await FB.signInAnonymously(FB.auth); }catch(_){} }
+    if(FB && !FB.auth.currentUser){ try{ await new Promise((res,rej)=>{const unsub=FB.auth.onAuthStateChanged(u=>{unsub();res();});setTimeout(res,2000);FB.signInAnonymously(FB.auth).catch(rej);}); }catch(_){} }
     try{
       await Store.add('messages', { ticketId:id, senderId:Auth.user?.id||null,
         senderName: Auth.user?.name || (t.anonymous?'מדווח אנונימי':(t.reporterName||'מדווח')),
-        senderRank: Auth.user?.rank || 'citizen', staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO() });
+        senderRank: Auth.user?.rank || 'citizen', verified: Auth.user?.verified||false, staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO() });
       if(/\u0040AI\b/i.test(txt)) smaiAIReply(id, txt);
       if(!internal){
         if(staff) await notifyTicket(t, 'ticketReply', MAIL_TPL.ticketReply(t, Auth.user?.name||'נציג SMAI', txt));
@@ -3743,8 +3783,10 @@ route('/ticket', async (app, id)=>{
     $('#sSave').onclick = async ()=>{
       const as = $('#sAs').value;
       const u = agents.find(x=>x.id===as);
-      await Store.update('tickets', id, { status:$('#sSt').value, priority:$('#sPr').value,
-        dept:$('#sDp').value, assignedTo: as||null, assignedName: u? (u.name||u.email):'', updatedAt: nowISO() });
+      await const _nSt = $('#sSt').value;
+        const _clf = (['closed','resolved'].includes(_nSt)) ? {closedBy: Auth.user?.name||Auth.user?.email||'צוות', closedAt: nowISO()} : {};
+        Store.update('tickets', id, { status:_nSt, priority:$('#sPr').value,
+        dept:$('#sDp').value, assignedTo: as||null, assignedName: u? (u.name||u.email):'', updatedAt: nowISO(), ..._clf });
       await Store.add('messages', { ticketId:id, system:true, senderId:null,
         text:`${Auth.user.name} עדכן את הפנייה: סטטוס ${STATUS[$('#sSt').value].l}, עדיפות ${PRIO[$('#sPr').value].l}${u?`, שויך ל${u.name||u.email}`:''}`,
         createdAt: nowISO() });
@@ -4159,7 +4201,7 @@ function renderTextChannel(s, ch, users, o){
       return;
     }
     inp.value = ''; inp.disabled = true;
-    if(FB && !FB.auth.currentUser){ try{ await FB.signInAnonymously(FB.auth); }catch(_){} }
+    if(FB && !FB.auth.currentUser){ try{ await new Promise((res,rej)=>{const unsub=FB.auth.onAuthStateChanged(u=>{unsub();res();});setTimeout(res,2000);FB.signInAnonymously(FB.auth).catch(rej);}); }catch(_){} }
     if(FB && FB.auth.currentUser) await FB.auth.currentUser.getIdToken(true).catch(()=>{});
     const cc = $('#cCount'); if(cc) cc.textContent = `0 / ${CFG.get('chatMaxLen')}`;
     try{
