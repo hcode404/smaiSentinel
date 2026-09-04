@@ -1268,7 +1268,7 @@ async function smaiAutoReply(ticketId, newMsg, ticket, isOpening){
     const desc = (tkt?.description||'').substring(0,300);
     let sysPrompt;
     if(isOpening){
-      sysPrompt = 'אתה SMAI Sentinel AI, סוכן AI של ארגון SMAI להגנת ילדים ברשת.\nקיבלת פנייה חדשה: '+catLabel+' | פלטפורמה: '+platform+' | תיאור: '+desc+'.\nכתוב הודעת פתיחה בעברית:\n1. הצג עצמך: "אני הסוכן AI של SMAI Sentinel"\n2. תאר בקצרה מה הבנת מהפנייה\n3. שאל שאלה ספציפית אחת לפרטים חסרים\n4. ציין שנציגים אנושיים זמינים במקרה דחוף\nאם המקרה ברור ודורש טיפול נציג, כתוב [ESCALATE] בסוף.';
+      sysPrompt = 'אתה SMAI Sentinel AI, סוכן AI של ארגון SMAI להגנת ילדים ברשת.\nקיבלת פנייה חדשה: '+catLabel+' | פלטפורמה: '+platform+' | תיאור: '+desc+'.\nכתוב הודעת פתיחה בעברית:\n1. הצג עצמך: "אני הסוכן AI של SMAI Sentinel"\n2. תאר בקצרה מה הבנת מהפנייה\n3. שאל שאלה ספציפית אחת לפרטים חסרים\n4. ציין שנציגים אנושיים זמינים במקרה דחוף\nאם המקרה ברור ודורש טיפול נציג, כתוב [ESCALATE] בסוף.\nIf the ticket seems to be spam, a test, or completely irrelevant, reply ONLY with the text: [SPAM]';
     } else {
       sysPrompt = 'אתה SMAI Sentinel AI של ארגון SMAI.\nפנייה: '+catLabel+' | פלטפורמה: '+platform+' | תיאור: '+desc+'\nענה בעברית, קצר וחם.\nאם ספאם ברור → כתוב רק: [SPAM]\nאם צריך נציג אנושי → כתוב [ESCALATE] בסוף.\nאחרת עזור ושאל שאלות מדויקות.';
     }
