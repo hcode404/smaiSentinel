@@ -477,6 +477,7 @@ footer a{color:var(--ink2);font-size:.9rem} footer a:hover{color:var(--brand2)}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:11px}
 .ptile{display:flex;flex-direction:column;gap:5px;padding:15px 14px;border:2px solid var(--line);border-radius:var(--r);
   background:var(--surface);cursor:pointer;transition:.22s var(--ease);text-align:start;position:relative}
+.plat-logo{width:28px;height:28px;border-radius:6px;object-fit:contain;display:block;margin:0 auto 2px;}
 .ptile:hover{border-color:var(--brand2);transform:translateY(-3px);box-shadow:var(--shadow-md)}
 .ptile.on{border-color:var(--brand2);background:var(--info-bg);box-shadow:var(--shadow-glow)}
 .ptile .em{font-size:1.7rem;line-height:1}
@@ -1000,6 +1001,11 @@ const REPORT_PLATFORMS = [
 ];
 const PLAT_BY = Object.fromEntries(REPORT_PLATFORMS.map(p=>[p.id,p]));
 
+function platLogo(id){
+  const d={roblox:'roblox.com',discord:'discord.com',whatsapp:'whatsapp.com',instagram:'instagram.com',tiktok:'tiktok.com',snapchat:'snapchat.com',telegram:'telegram.org',fortnite:'fortnite.com',youtube:'youtube.com',minecraft:'minecraft.net',steam:'steampowered.com',robloxstudio:'roblox.com'};
+  if(!d[id])return '';
+  return '<img class="plat-logo" src="https://logo.clearbit.com/'+d[id]+'?size=40" alt="" loading="lazy" onerror="this.style.display=\'none\'">' ;
+}
 /* ===================== סוגי דיווח (תפריט לפני ההסבר) ===================== */
 const REPORT_CATS = [
   { id:'harass',   l:'הטרדה, איומים או בריונות',            dept:'harassment', sev:3, ico:'shield-alert',
@@ -3438,7 +3444,7 @@ route('/report', (app)=>{
         ${REPORT_PLATFORMS.map(pl=>`
           <button type="button" class="ptile ${W.plat===pl.id?'on':''}" onclick="${bind(()=>{ W.plat=pl.id; W.cat=''; W.step=2; paint(); })}">
             ${pl.partner?'<span class="pt">שיתוף פעולה</span>':''}
-            <span class="em">${pl.em}</span>
+            ${platLogo(pl.id)}<span class="em">${pl.em}</span>
             <span class="nm">${esc(pl.l)}</span>
             <span class="ds">${esc(pl.d)}</span>
           </button>`).join('')}
