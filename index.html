@@ -1273,7 +1273,7 @@ async function smaiAutoReply(ticketId, newMsg, ticket, isOpening){
       return;
     }
     const needsHuman = reply.includes('[ESCALATE]');
-    const cleanReply = reply.replace(/\[ESCALATE\]/g,'').trim();
+    const cleanReply = reply.replace(/\[ESCALATE\]/g,'').trim()||(needsHuman?'מעביר לנציג אנושי.':'מצטער, נתקלתי.');
     await Store.update('messages',ph.id,{text:cleanReply});
     if(needsHuman){
       await Store.update('tickets',ticketId,{status:'escalated',aiEscalated:true,escalateReason:'הסוכן AI העביר לנציג אנושי',updatedAt:nowISO()});
