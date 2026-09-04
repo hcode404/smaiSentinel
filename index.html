@@ -3994,7 +3994,7 @@ route('/ticket', async (app, id)=>{
         senderRank: Auth.user?.rank || 'citizen', verified: Auth.user?.verified||false, staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO(), ...(window._replyTo?{replyTo:window._replyTo}:{}) });
       if(staff && /[@@](ai\b|smai\s+sentinel\s+ai)/i.test(txt)) smaiAIReply(id, txt);
       if(!staff && !internal && t?.status!=='escalated' && t?.status!=='closed') smaiAutoReply(id, txt, t, false);
-      if(!staff && !internal) Store.add('logs',{ticketId:id,userId:Auth.user?.id||null,text:txt,createdAt:nowISO()}).catch(()=>{});e);
+      if(!staff && !internal) Store.add('logs',{ticketId:id,userId:Auth.user?.id||null,text:txt,createdAt:nowISO()}).catch(()=>{});
       if(!internal){
         if(staff) await notifyTicket(t, 'ticketReply', MAIL_TPL.ticketReply(t, Auth.user?.name||'נציג SMAI', txt));
         else if(t.assignedTo) await mailUser(t.assignedTo, 'ticketReply', MAIL_TPL.ticketReply(t, 'המדווח', txt));
