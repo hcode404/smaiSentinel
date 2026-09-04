@@ -4366,6 +4366,7 @@ function renderTextChannel(s, ch, users, o){
         : (o.canPost
           ? `<div class="composer" style="border:0;padding:0;margin:0">
               <textarea id="cin" maxlength="${CFG.get('chatMaxLen')}" placeholder="כתיבת הודעה ב־${esc(ch.name)}... (Enter לשליחה)" style="min-height:46px"></textarea>
+<div id="cMentionList" class="mention-list" style="display:none;position:absolute;bottom:100%;left:0;right:0"></div>
               <button class="btn btn-p" id="cbtn" style="height:46px">${ic('send',17)}</button></div>
              <div class="row between" style="margin-top:7px">
                <span class="tiny mute">${ic('shield-check',11)} ההודעה נסרקת אוטומטית לפני הפרסום.</span>
@@ -4462,6 +4463,21 @@ function renderTextChannel(s, ch, users, o){
   };
   const cb = $('#cbtn'); if(cb) cb.onclick = sendC;
   if(inp) inp.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendC(); } });
+  // ===== @mention autocomplete (server chat) =====
+  (()=>{
+    const mInp2 = document.getElementById('cin'), mList2 = document.getElementById('cMentionList');
+    if(!mInp2 || !mList2) return;
+    let mA2=false, mS2=0, mI2=0, mIt2=[];
+    let _cu=[];
+    Store.list('users').then(u=>{ _cu=u||[]; }).catch(()=>{});
+    const _ci=(q)=>_cu.filter(u=> !q||(u.name||''). toLowerCase().startsWith(q.toLowerCase())||(u.email||'').toLowerCase().startsWith(q.toLowerCase())).slice(0,8);
+    const _cr=()=>{ mList2.innerHTML=''; mIt2.forEach((u,i)=>{ const d=document.createElement('div'); d.className='mention-item'+(i===mI2?' active':'')+' cmenitem'; d.textContent=(u.name||u.email||u.id); d.onmousedown=e=>{e.preventDefault();_cp2(i);}; mList2.appendChild(d); }); mList2.style.display=mIt2.length?'block':'none'; };
+    const _cs=()=>{ const txt=mInp2.value; const at=txt.lastIndexOf('@',mInp2.selectionStart-1); if(at===-1){mList2.style.display='none';mA2=false;return;} const q=txt.substring(at+1,mInp2.selectionStart); if(/\s/.test(q)){mList2.style.display='none';mA2=false;return;} mS2=at; mIt2=_ci(q); mI2=0; mA2=true; _cr(); };
+    const _cp2=(i)=>{ const u=mIt2[i]; if(!u) return; const txt=mInp2.value; const b=txt.substring(0,mS2); const a=txt.substring(mInp2.selectionStart); const m='@'+(u.name||u.email||u.id)+' '; mInp2.value=b+m+a; mInp2.selectionStart=mInp2.selectionEnd=b.length+m.length; mList2.style.display='none'; mA2=false; mInp2.dispatchEvent(new Event('input')); };
+    mInp2.addEventListener('input', _cs);
+    mInp2.addEventListener('keydown', e=>{ if(!mA2||!mIt2.length) return; if(e.key==='ArrowDown'){e.preventDefault();mI2=(mI2+1)%mIt2.length;_cr();} else if(e.key==='ArrowUp'){e.preventDefault();mI2=(mI2-1+mIt2.length)%mIt2.length;_cr();} else if(e.key==='Enter'&&mA2){e.preventDefault();_cp2(mI2);} else if(e.key==='Escape'){mList2.style.display='none';mA2=false;} });
+    document.addEventListener('click', e=>{if(!mList2.contains(e.target)&&e.target!==mInp2){mList2.style.display='none';mA2=false;}});
+  })();
 }
 
 /* ===================== ערוץ פורום ===================== */
