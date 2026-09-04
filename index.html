@@ -1243,6 +1243,35 @@ async function smaiAIReply(ticketId,triggerText){
   }catch(e){ await Store.update('messages',ph.id,{text:'שגיאת AI: '+e.message}); }
 }
 
+async function smaiAutoReply(ticketId, newMsg, ticket, isOpening){
+  const ph = await Store.add('messages',{ticketId,senderId:'ai-system',senderName:'SMAI Sentinel AI',senderRank:'ai',ai:true,text:'מנתח…',createdAt:nowISO()});
+  if(!ph) return;
+  try{
+    const tkt = ticket || await Store.get('tickets',ticketId);
+    const catLabel = tkt?.catLabel||''; const platform = tkt?.platform||'לא צוין';
+    const desc = (tkt?.description||'').substring(0,300);
+    let sysPrompt;
+    if(isOpening){
+      sysPrompt = 'אתה SMAI Sentinel AI, סוכן AI של ארגון SMAI להגנת ילדים ברשת.\nקיבלת פנייה חדשה: '+catLabel+' | פלטפורמה: '+platform+' | תיאור: '+desc+'.\nכתוב הודעת פתיחה בעברית:\n1. הצג עצמך: "אני הסוכן AI של SMAI Sentinel"\n2. תאר בקצרה מה הבנת מהפנייה\n3. שאל שאלה ספציפית אחת לפרטים חסרים\n4. ציין שנציגים אנושיים זמינים במקרה דחוף\nאם המקרה ברור ודורש טיפול נציג, כתוב [ESCALATE] בסוף.';
+    } else {
+      sysPrompt = 'אתה SMAI Sentinel AI של ארגון SMAI.\nפנייה: '+catLabel+' | פלטפורמה: '+platform+' | תיאור: '+desc+'\nענה בעברית, קצר וחם.\nאם ספאם ברור → כתוב רק: [SPAM]\nאם צריך נציג אנושי → כתוב [ESCALATE] בסוף.\nאחרת עזור ושאל שאלות מדויקות.';
+    }
+    const reply = await callAI(newMsg, sysPrompt);
+    if(reply.trim().startsWith('[SPAM]')){
+      await Store.update('messages',ph.id,{text:'ההודעה זויתה כלא רלוונטית. אם מדובר בפנייה אמיתית, פנה שוב עם פרטים.'});
+      await Store.update('tickets',ticketId,{status:'closed',updatedAt:nowISO()});
+      return;
+    }
+    const needsHuman = reply.includes('[ESCALATE]');
+    const cleanReply = reply.replace(/\[ESCALATE\]/g,'').trim();
+    await Store.update('messages',ph.id,{text:cleanReply});
+    if(needsHuman){
+      await Store.update('tickets',ticketId,{status:'escalated',aiEscalated:true,escalateReason:'הסוכן AI העביר לנציג אנושי',updatedAt:nowISO()});
+      await Store.add('messages',{ticketId,senderId:null,system:true,text:'הפנייה הועברה לנציג אנושי — הצוות ייצור קשר בהקדם.',createdAt:nowISO()});
+    }
+  }catch(e){ await Store.update('messages',ph.id,{text:'שגיאת AI: '+e.message}); }
+}
+
 const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 function debounce(fn,ms=320){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 function ticketCode(){
@@ -3508,12 +3537,7 @@ route('/report', (app)=>{
         if (/דחוף|מיידי|חירום|urgent/.test(_aid)) _aiUpd.priority = 'critical';
         else if (/חשוב|בעיה גדולה/.test(_aid)) _aiUpd.priority = 'high';
         await Store.update('tickets', t.id, _aiUpd);
-        var _aiAns = _aiStaff(_aid);
-        await Store.add('messages', {
-          ticketId: t.id, senderId: 'ai-system', senderName: 'עוזר SMAI',
-          senderRank: 'ai', text: _aiAns + ' - ניתוב: ' + _aiDept,
-          internal:false, autoReply:true, createdAt:nowISO()
-        });
+        smaiAutoReply(t.id, t.description||t.title||'', t, true);
       } catch (_ae) {}
 
       const saved = JSON.parse(localStorage.getItem('smai_codes')||'[]');
@@ -3917,6 +3941,7 @@ route('/ticket', async (app, id)=>{
         senderName: Auth.user?.name || (t.anonymous?'מדווח אנונימי':(t.reporterName||'מדווח')),
         senderRank: Auth.user?.rank || 'citizen', verified: Auth.user?.verified||false, staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO() });
       if(staff && /[@@](ai\b|smai\s+sentinel\s+ai)/i.test(txt)) smaiAIReply(id, txt);
+      if(!staff && !internal) smaiAutoReply(id, txt, null, false);
       if(!internal){
         if(staff) await notifyTicket(t, 'ticketReply', MAIL_TPL.ticketReply(t, Auth.user?.name||'נציג SMAI', txt));
         else if(t.assignedTo) await mailUser(t.assignedTo, 'ticketReply', MAIL_TPL.ticketReply(t, 'המדווח', txt));
