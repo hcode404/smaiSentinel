@@ -768,6 +768,14 @@ html.no-motion *, html.no-motion *::before, html.no-motion *::after{
 .ban-appeal-cancel{background:#0f0f1e;color:#666;border:1px solid #1e1e3a;border-radius:8px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:.83rem}
 .ban-appeal-submit{background:#102040;color:#6af;border:1px solid #1a4080;border-radius:8px;padding:8px 20px;cursor:pointer;font-weight:700;font-family:inherit;font-size:.83rem}
 .ban-appeal-submit:hover{background:#152850}
+
+.reply-btn{display:none;position:absolute;top:4px;left:4px;background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);padding:2px 6px;border-radius:6px;transition:.15s}
+.reply-btn:hover{background:var(--bg2);color:var(--accent)}
+.bub{position:relative}
+.bub:hover .reply-btn{display:inline-flex}
+.reply-quote{background:var(--bg2);border-right:3px solid var(--accent);border-radius:4px;padding:4px 8px;margin-bottom:6px;font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+.reply-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg2);border-top:1px solid var(--border);font-size:.82rem;color:var(--muted)}
+.reply-bar .cancel-reply{cursor:pointer;margin-right:auto;font-size:1rem}
 </style>
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -1233,13 +1241,14 @@ async function callAI(prompt, systemPrompt){
   throw new Error('כל המודלים עמוסים כרגע. נסה שוב בעוד דקה.');
 }
 async function smaiAIReply(ticketId,triggerText){
-  const ph = await Store.add('messages',{ticketId,senderId:'ai-system',senderName:'SMAI Sentinel AI',senderRank:'ai',ai:true,text:'מעבד…',createdAt:nowISO()});
+  const ph = await Store.add('messages',{ticketId,senderId:'ai-system',senderName:'SMAI Sentinel AI',senderRank:'ai',ai:true,text:'מנתח…',createdAt:nowISO()});
   if(!ph) return;
   try{
     const tkt = await Store.get('tickets',ticketId);
-    const sys = 'אתה SMAI Sentinel AI, עוזר AI של ארגון SMAI להגנת ילדים ברשת. ענה בעברית בלבד, בחום וקצר. אל תבטיח מה שאי אפשר לקיים. במצב סכנה מיידית הפנה למשטרה 100.' + (tkt?' המקרה: '+(tkt.catLabel||'')+' — '+(tkt.title||tkt.description||'')+'.':'');
-    const reply = await callAI(triggerText, sys);
-    await Store.update('messages',ph.id,{text:reply});
+    const isOwner = isOwnerEmail(Auth.user?.email);
+    const authLevel = isOwner ? 'owner' : (Auth.isStaff() ? 'staff' : 'none');
+    const reply = await smaiAdminCommand(ticketId, triggerText, tkt, authLevel, ph.id);
+    if(reply !== null) await Store.update('messages',ph.id,{text:reply});
   }catch(e){ await Store.update('messages',ph.id,{text:'שגיאת AI: '+e.message}); }
 }
 
@@ -1248,6 +1257,7 @@ async function smaiAutoReply(ticketId, newMsg, ticket, isOpening){
   if(!ph) return;
   try{
     const tkt = ticket || await Store.get('tickets',ticketId);
+    if(tkt?.status==='escalated'||tkt?.status==='closed') return;
     const catLabel = tkt?.catLabel||''; const platform = tkt?.platform||'לא צוין';
     const desc = (tkt?.description||'').substring(0,300);
     let sysPrompt;
@@ -1270,6 +1280,56 @@ async function smaiAutoReply(ticketId, newMsg, ticket, isOpening){
       await Store.add('messages',{ticketId,senderId:null,system:true,text:'הפנייה הועברה לנציג אנושי — הצוות ייצור קשר בהקדם.',createdAt:nowISO()});
     }
   }catch(e){ await Store.update('messages',ph.id,{text:'שגיאת AI: '+e.message}); }
+
+async function smaiAdminCommand(ticketId, cmd, tkt, authLevel, phId){
+  if(authLevel === 'none') return 'אין לך הרשאה לפנות לסוכן AI ישירות.';
+  
+  // Build context based on auth level
+  let ctxData = '';
+  let sysPrompt = '';
+  
+  if(authLevel === 'owner'){
+    // Owner: full access — fetch logs, recent tickets summary
+    try{
+      const logs = await Store.list('logs').then(l=>(l||[]).slice(-20));
+      const recentTkts = await Store.list('tickets').then(t=>(t||[]).slice(-10));
+      ctxData = 'לוגים אחרונים (20): '+JSON.stringify(logs.map(l=>({u:l.userName,t:l.text,at:l.createdAt})))+'
+כרטיסים פתוחים: '+recentTkts.filter(t=>t.status==='open').length+' | כולם: '+recentTkts.length;
+    }catch(e){ ctxData = '(לא ניתן לטעון נתונים: '+e.message+')'; }
+    sysPrompt = 'אתה SMAI Sentinel AI עם הרשאות מלאות של יוצר המערכת.'+
+      '
+יש לך גישה מלאה לכל הנתונים, ביצוע פעולות ניהול, קבלת החלטות ללא הגבלה.'+
+      '
+ענה בעברית. הכרטיס: '+(tkt?.catLabel||'')+' | '+(tkt?.title||'')+
+      '
+נתוני מערכת: '+ctxData;
+  } else {
+    // Staff: limited — can get report, check emergency flags
+    sysPrompt = 'אתה SMAI Sentinel AI עם הרשאות צוות מוגבלות.'+
+      '
+מותר לך: לספק דוחות מסודרים, לסמן מצבי חירום, לחפש מידע ספציפי בכרטיס.'+
+      '
+אסור: לחשוף מידע אישי מלא, לבצע פעולות ניהול ישירות.'+
+      '
+אם יש חירום מיידי (סכנת חיים, פגיעה) → כתוב [EMERGENCY] בסוף.'+
+      '
+הכרטיס: '+(tkt?.catLabel||'')+' | '+(tkt?.title||'')+' | '+(tkt?.description||'').substring(0,200);
+  }
+  
+  const reply = await callAI(cmd, sysPrompt);
+  
+  // Emergency detection
+  if(reply.includes('[EMERGENCY]')){
+    const cleanReply = reply.replace(/[EMERGENCY]/g,'').trim();
+    await Store.add('messages',{ticketId,senderId:null,system:true,
+      text:'⚠️ מצב חירום זוהה — מועבר לצוות בכיר ורשויות במידת הצורך.',createdAt:nowISO()});
+    await Store.update('tickets',ticketId,{status:'escalated',emergency:true,escalateReason:'חירום זוהה ע"י AI',updatedAt:nowISO()});
+    if(phId) await Store.update('messages',phId,{text:cleanReply});
+    return null; // already updated
+  }
+  
+  return reply;
+}
 }
 
 const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
@@ -3916,9 +3976,9 @@ route('/ticket', async (app, id)=>{
           <div class="who">SMAI AI <span class="b b-violet">${ic('sparkle',11)} סוכן חכם</span>
             ${m.escalated?'<span class="b b-dang">הועבר לנציג אנושי</span>':''}</div>
           ${aiStagesHTML(m.stages)}
-          <div class="txt">${esc(m.text)}</div>
+          <div ${m.replyTo?'<div class="reply-quote">↩ '+esc(m.replyTo.sender||'')+': '+esc((m.replyTo.text||'').substring(0,60))+'</div>':''}<div class="txt"(m.text)}</div>
           ${m.article?`<a class="btn btn-g btn-sm" style="margin-top:9px" href="#/article/${m.article}">${ic('book',14)} למדריך המלא</a>`:''}
-          <div class="tm">${fmtTime(m.createdAt)} · ${fmtDate(m.createdAt)}</div></div></div>`;
+          <div class="tm">${fmtTime(m.createdAt)} · ${fmtDate(m.createdAt)}</div><button class="reply-btn" data-mid="${m.id}" data-mtxt="${esc((m.text||'').substring(0,80))}" data-mname="${esc(m.senderName||'')}">↩</button></div></div>`;
       return `<div class="msg ${mine?'mine':''} ${m.internal?'int':''}">
         ${avatar({id:m.senderId,name:m.senderName},'s')}
         <div class="bub"><div class="who">${esc(m.senderName||'משתמש')} ${rankBadge(m.senderRank)}${m.verified ? '<span class="b b-ok" style="font-size:10px">✓ מאומת</span>' : ''}
@@ -3939,9 +3999,10 @@ route('/ticket', async (app, id)=>{
     try{
       await Store.add('messages', { ticketId:id, senderId:Auth.user?.id||null,
         senderName: Auth.user?.name || (t.anonymous?'מדווח אנונימי':(t.reporterName||'מדווח')),
-        senderRank: Auth.user?.rank || 'citizen', verified: Auth.user?.verified||false, staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO() });
+        senderRank: Auth.user?.rank || 'citizen', verified: Auth.user?.verified||false, staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO(), ...(window._replyTo?{replyTo:window._replyTo}:{}) });
       if(staff && /[@@](ai\b|smai\s+sentinel\s+ai)/i.test(txt)) smaiAIReply(id, txt);
-      if(!staff && !internal) smaiAutoReply(id, txt, null, false);
+      if(!staff && !internal && t?.status!=='escalated' && t?.status!=='closed') smaiAutoReply(id, txt, t, false);
+      if(!staff && !internal) Store.add('logs',{ticketId:id,userId:Auth.user?.id||null,text:txt,createdAt:nowISO()}).catch(()=>{});e);
       if(!internal){
         if(staff) await notifyTicket(t, 'ticketReply', MAIL_TPL.ticketReply(t, Auth.user?.name||'נציג SMAI', txt));
         else if(t.assignedTo) await mailUser(t.assignedTo, 'ticketReply', MAIL_TPL.ticketReply(t, 'המדווח', txt));
@@ -3964,6 +4025,17 @@ route('/ticket', async (app, id)=>{
   };
   const _mb=$('#msgBtn'); if(_mb) _mb.onclick=send;
   const _mi=$('#msgIn'); if(_mi) _mi.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} });
+  // ===== Reply handler =====
+  window._replyTo = null;
+  (() => {
+    const _replyBar = document.createElement('div');
+    _replyBar.className='reply-bar'; _replyBar.style.display='none';
+    _replyBar.innerHTML='<span class="cancel-reply" title="' + 'בטל">✕</span><span id="replyPreview"></span>';
+    const _msgInEl = document.getElementById('msgIn');
+    if(_msgInEl?.parentNode) _msgInEl.parentNode.insertBefore(_replyBar, _msgInEl);
+    _replyBar.querySelector('.cancel-reply').onclick=()=>{ window._replyTo=null; _replyBar.style.display='none'; };
+    chatEl.addEventListener('click', e=>{ const rb=e.target.closest('.reply-btn'); if(!rb) return; e.stopPropagation(); window._replyTo={id:rb.dataset.mid,text:rb.dataset.mtxt,sender:rb.dataset.mname}; document.getElementById('replyPreview').textContent='↩ '+rb.dataset.mname+': '+(rb.dataset.mtxt||'').substring(0,50); _replyBar.style.display='flex'; _msgInEl?.focus(); });
+  })();
   // ===== @mention autocomplete =====
   (()=>{
     const mInp = $('#msgIn'), mList = $('#mentionList');
