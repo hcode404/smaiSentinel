@@ -4465,7 +4465,7 @@ function renderTextChannel(s, ch, users, o){
         <div class="bub"><div class="who"><span style="cursor:pointer" onclick="openProfile('${jsq(m.senderId||'')}')">${esc(m.senderName||'משתמש')}</span> ${rankBadge(m.senderRank)}
           ${su?.verified?`<span class="verified">${ic('check',9,3)}</span>`:''}
           ${m.flagged?`<span class="b b-warn" title="סומן ע״י המערכת">${ic('flag',10)} נבדק</span>`:''}</div>
-          <div class="txt">${linkify(m.text)}</div>
+          ${m.replyTo?'<div class="reply-quote">↩ '+esc(m.replyTo.sender||'')+': '+esc((m.replyTo.text||'').substring(0,60))+'</div>':''}<div class="txt">${linkify(m.text)}</div>
           <div class="tm">${fmtTime(m.createdAt)}${m.edited?' · נערך':''}</div></div>
         <div class="acts">
           ${me && !mine ? `<button title="דיווח על ההודעה" data-act="report" data-id="${m.id}">${ic('flag',13)}</button>`:''}
@@ -4473,7 +4473,7 @@ function renderTextChannel(s, ch, users, o){
           ${me && !mine && m.senderId ? `<button title="הוספה כחבר" data-act="fr" data-id="${m.senderId}">${ic('plus',13)}</button>`:''}
           ${canMod || mine ? `<button title="מחיקת ההודעה" data-act="del" data-id="${m.id}">${ic('trash',13)}</button>`:''}
           ${canMod && !mine && m.senderId ? `<button title="פעולות משתמש" data-act="user" data-id="${m.senderId}">${ic('user',13)}</button>`:''}
-        </div></div>`;
+        <button class="reply-btn" data-chat="c" data-mid="${m.id}" data-mtxt="${esc((m.text||'').substring(0,80))}" data-mname="${esc(m.senderName||'')}">↩</button></div></div>`;
     }).join('') : `<div class="empty"><div class="ico">${ic('message',26)}</div>
         <p class="small">עדיין שקט ב־${esc(ch.name)}. תהיו הראשונים שכותבים.</p></div>`;
     box.scrollTop = box.scrollHeight;
@@ -4520,7 +4520,8 @@ function renderTextChannel(s, ch, users, o){
     try{
       await Store.add('cmsgs', { server:s.id, channel:ch.id, channelName:ch.name,
         senderId:me.id, senderName:me.name||me.email, senderRank:me.rank,
-        text:txt, flagged: mod.violation, modCat: mod.cat||null, createdAt:nowISO() });
+        text:txt, flagged: mod.violation, modCat: mod.cat||null, ...(window._replyTo2?{replyTo:window._replyTo2}:{}),createdAt:nowISO() });
+      if(window._replyTo2){window._replyTo2=null;const _br2=document.getElementById('_rBar2');if(_br2)_br2.style.display='none';}
       Sfx.play('msgOut');
       notifyMentions(txt, s.name+' / '+ch.name, users).catch(()=>{});
       if(mod.violation) toast('ההודעה פורסמה וסומנה לבדיקת מודרטור','warn');
@@ -4551,6 +4552,50 @@ function renderTextChannel(s, ch, users, o){
     document.addEventListener('click', e=>{if(!mList2.contains(e.target)&&e.target!==mInp2){mList2.style.display='none';mA2=false;}});
   })();
 }
+window._replyTo2=null;
+(()=>{
+  document.addEventListener('click',e=>{
+    const rb=e.target.closest('.reply-btn[data-chat="c"]');
+    if(!rb)return;
+    e.stopPropagation();
+    const cinEl=document.getElementById('cin');
+    if(!cinEl)return;
+    let bar=document.getElementById('_rBar2');
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='_rBar2';bar.className='reply-bar';
+      bar.innerHTML='<span class="cancel-reply" title="X">✕</span><span id="replyPreview2"></span>';
+      cinEl.parentNode.insertBefore(bar,cinEl);
+      bar.querySelector('.cancel-reply').onclick=()=>{window._replyTo2=null;bar.style.display='none';};
+    }
+    window._replyTo2={id:rb.dataset.mid,text:rb.dataset.mtxt,sender:rb.dataset.mname};
+    const p2=document.getElementById('replyPreview2');
+    if(p2)p2.textContent='↩ '+rb.dataset.mname+': '+(rb.dataset.mtxt||'').substring(0,50);
+    bar.style.display='flex';cinEl.focus();
+  });
+})();
+window._replyTo3=null;
+(()=>{
+  document.addEventListener('click',e=>{
+    const rb=e.target.closest('.reply-btn[data-chat="d"]');
+    if(!rb)return;
+    e.stopPropagation();
+    const dinEl=document.getElementById('din');
+    if(!dinEl)return;
+    let bar=document.getElementById('_rBar3');
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='_rBar3';bar.className='reply-bar';
+      bar.innerHTML='<span class="cancel-reply" title="X">✕</span><span id="replyPreview3"></span>';
+      dinEl.parentNode.insertBefore(bar,dinEl);
+      bar.querySelector('.cancel-reply').onclick=()=>{window._replyTo3=null;bar.style.display='none';};
+    }
+    window._replyTo3={id:rb.dataset.mid,text:rb.dataset.mtxt,sender:rb.dataset.mname};
+    const p3=document.getElementById('replyPreview3');
+    if(p3)p3.textContent='↩ '+rb.dataset.mname+': '+(rb.dataset.mtxt||'').substring(0,50);
+    bar.style.display='flex';dinEl.focus();
+  });
+})();
 
 /* ===================== ערוץ פורום ===================== */
 async function renderForum(s, ch, users, threadId, o){
@@ -4637,11 +4682,11 @@ async function renderForum(s, ch, users, threadId, o){
             <span style="cursor:pointer" onclick="openProfile('${jsq(m.senderId||'')}')">${avatar({id:m.senderId,name:m.senderName,avatar:su.avatar},'s')}</span>
             <div class="bub"><div class="who">${esc(m.senderName||'משתמש')} ${rankBadge(m.senderRank)}
               ${su.verified?`<span class="verified">${ic('check',9,3)}</span>`:''}</div>
-              <div class="txt">${linkify(m.text)}</div><div class="tm">${fmtTime(m.createdAt)}</div></div>
+              ${m.replyTo?'<div class="reply-quote">↩ '+esc(m.replyTo.sender||'')+': '+esc((m.replyTo.text||'').substring(0,60))+'</div>':''}<div class="txt">${linkify(m.text)}</div><div class="tm">${fmtTime(m.createdAt)}</div></div>
             <div class="acts">
               ${me && !mine ? `<button title="דיווח" data-act="report" data-id="${m.id}">${ic('flag',13)}</button>`:''}
               ${canModT || mine ? `<button title="מחיקה" data-act="del" data-id="${m.id}">${ic('trash',13)}</button>`:''}
-            </div></div>`;
+            <button class="reply-btn" data-chat="c" data-mid="${m.id}" data-mtxt="${esc((m.text||'').substring(0,80))}" data-mname="${esc(m.senderName||'')}">↩</button></div></div>`;
         }).join('') : `<p class="tiny mute">אין עדיין תגובות. תהיו הראשונים.</p>`}
       </div>`;
     const last = reps[reps.length-1];
@@ -5103,7 +5148,8 @@ async function openDM(otherId, otherName){
   let c = all.find(x=>x.key===key);
   if(!c) c = await Store.add('dms', { key, members:[me.id, otherId],
     names:{ [me.id]: me.name||me.email, [otherId]: otherName||'משתמש' },
-    lastText:'', lastAt:nowISO(), createdAt:nowISO() });
+    lastText:'', lastAt:nowISO(), ...(window._replyTo3?{replyTo:window._replyTo3}:{}),createdAt:nowISO() });
+  if(window._replyTo3){window._replyTo3=null;const _br3=document.getElementById('_rBar3');if(_br3)_br3.style.display='none';}
   return c;
 }
 /* קבוצה פרטית = שיחה עם יותר משני משתתפים */
@@ -5211,8 +5257,8 @@ route('/dm', async (app, id)=>{
         ${avatar({ id:m.senderId, name:m.senderName, avatar:(su?.avatar || (isMine?me.avatar:otherU?.avatar)) },'s')}
         <div class="bub"><div class="who">${esc(m.senderName||'משתמש')} ${rankBadge(m.senderRank)}
           ${m.flagged?`<span class="b b-warn">${ic('flag',10)} נבדק</span>`:''}</div>
-          <div class="txt">${esc(m.text)}</div><div class="tm">${fmtTime(m.createdAt)}</div></div>
-        <div class="acts">${!isMine?`<button title="דיווח" data-act="report" data-id="${m.id}">${ic('flag',13)}</button>`:''}</div></div>`;
+          ${m.replyTo?'<div class="reply-quote">↩ '+esc(m.replyTo.sender||'')+': '+esc((m.replyTo.text||'').substring(0,60))+'</div>':''}<div class="txt">${esc(m.text)}</div><div class="tm">${fmtTime(m.createdAt)}</div></div>
+        <div class="acts">${!isMine?`<button title="דיווח" data-act="report" data-id="${m.id}">${ic('flag',13)}</button>`:''}<button class="reply-btn" data-chat="d" data-mid="${m.id}" data-mtxt="${esc((m.text||'').substring(0,80))}" data-mname="${esc(m.senderName||'')}">↩</button></div></div>`;
     }).join('') : `<div class="empty"><div class="ico">${ic('message',26)}</div><p class="small">אין עדיין הודעות בשיחה הזו.</p></div>`;
     box.scrollTop = box.scrollHeight;
     /* צליל רק על הודעה חדשה של מישהו אחר, ולא בטעינה הראשונה */
