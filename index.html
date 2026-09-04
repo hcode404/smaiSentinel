@@ -1832,6 +1832,20 @@ function analyze(text){
            matched: matched[dept] || [], critHits, urgHits, scores, actions,
            depth: len < 60 ? 'short' : len < 320 ? 'medium' : 'detailed' };
 }
+async function analyzeWithAI(text){
+  const base=analyze(text);
+  try{
+    const r=await callAI('Analyze this abuse/harassment report. Return ONLY valid JSON with: prio (low/medium/high/critical), critical (boolean), confidence (0-1), urgency (0-1). Report: '+String(text).substring(0,800));
+    const m=r.match(/{[\s\S]*?}/);
+    if(!m)return base;
+    const p=JSON.parse(m[0]);
+    if(p.prio&&['low','medium','high','critical'].includes(p.prio))base.prio=p.prio;
+    if(p.critical!==undefined)base.critical=!!p.critical;
+    if(typeof p.confidence==='number')base.confidence=Math.min(1,Math.max(0,p.confidence));
+    if(typeof p.urgency==='number')base.urgency=Math.min(1,Math.max(0,p.urgency));
+  }catch(e){}
+  return base;
+}
 
 /* ---------- מודרציית קהילה ---------- */
 const MOD_RULES = [
@@ -3558,7 +3572,7 @@ route('/report', (app)=>{
     if(tgt && !tgt.value.trim()) return errEl.innerHTML = '<div class="err">צריך את שם המשתמש שעליו מדווחים</div>';
     const btn = $('#rfBtn'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> שולח...';
     try{
-      const a = last || analyze(title + ' ' + desc);
+      const a = last || await analyzeWithAI(title + ' ' + desc);
       const anon = $('#f_anon').checked;
       /* המחלקה והדחיפות נקבעות אך ורק על ידי המערכת — אין בחירה ידנית */
       const dept = c.sev >= 3 ? (c.dept || a.dept) : (a.dept !== 'other' ? a.dept : (c.dept || 'other'));
