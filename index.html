@@ -1207,15 +1207,30 @@ async function submitBanAppeal(){
   }
 }
 
+async function callAI(prompt, systemPrompt){
+  let key;
+  try{ const cfg = await Store.get('config','ai'); key = cfg?.geminiKey; }catch(e){}
+  if(!key) key = localStorage.getItem('smai_ai_key') || sessionStorage.getItem('smai_ai_key');
+  if(!key) throw new Error('לא הוגדר מפתח Gemini API. הגדר מפתח בפאנל הניהול.');
+  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+key,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({contents:[
+      ...(systemPrompt?[{role:'user',parts:[{text:'[System]: '+systemPrompt}]},{role:'model',parts:[{text:'הבנתי.'}]}]:[]),
+      {role:'user',parts:[{text:prompt}]}
+    ],generationConfig:{maxOutputTokens:600,temperature:0.8}})
+  });
+  const d = await r.json();
+  if(d.error) throw new Error(d.error.message);
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || 'לא התקבלה תשובה';
+}
 async function smaiAIReply(ticketId,triggerText){
   const ph = await Store.add('messages',{ticketId,senderId:'ai-system',senderName:'SMAI Sentinel AI',senderRank:'ai',ai:true,text:'מעבד…',createdAt:nowISO()});
   if(!ph) return;
   try{
     const tkt = await Store.get('tickets',ticketId);
-    const sysP = 'אתה SMAI Sentinel AI, עוזר AI של ארגון SMAI להגנת ילדים ברשת. ענה בעברית בלבד, בחום, קצר ומעשי. אל תבטיח מה שאי אפשר לקיים. במצב סכנה מיידית הפנה למשטרה 100.' + (tkt ? ' המקרה: ' + (tkt.catLabel||'') + ' — ' + (tkt.title||tkt.description||'') + '.' : '');
-    const r = await fetch('https://text.pollinations.ai/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:triggerText}],model:'openai',system:sysP,private:true})});
-    const reply = await r.text();
-    await Store.update('messages',ph.id,{text:reply||'לא התקבלה תשובה'});
+    const sys = 'אתה SMAI Sentinel AI, עוזר AI של ארגון SMAI להגנת ילדים ברשת. ענה בעברית בלבד, בחום וקצר. אל תבטיח מה שאי אפשר לקיים. במצב סכנה מיידית הפנה למשטרה 100.' + (tkt?' המקרה: '+(tkt.catLabel||'')+' — '+(tkt.title||tkt.description||'')+'.':'');
+    const reply = await callAI(triggerText, sys);
+    await Store.update('messages',ph.id,{text:reply});
   }catch(e){ await Store.update('messages',ph.id,{text:'שגיאת AI: '+e.message}); }
 }
 
@@ -7062,6 +7077,16 @@ route('/setup', async (app)=>{
           <button class="copy" id="cpAiw">${ic('copy',14)} העתקה</button><pre id="aiwTxt">${esc(AI_WORKER_SRC)}</pre></div>
       </div>
 
+      <div class="card" id="gemini-key-card">
+        <h2 style="font-size:1.2rem">מפתח Gemini ישיר (פשוט ובחינם)</h2>
+        <p class="mute small">קבל מפתח חינמי מ-<span class="mono">aistudio.google.com</span> ← "Get API key". המפתח נשמר בענן ומאפשר ל-AI לענות בצ׳אט הטיקטים.</p>
+        <div class="field"><label class="fl">מפתח Gemini API</label>
+          <input type="password" id="gemKeyIn" placeholder="AIza..." autocomplete="off" style="font-family:monospace">
+        </div>
+        <button class="btn btn-p" id="gemKeySave">${ic('check',16)} שמירה</button>
+        <span id="gemKeyStatus" class="small mute" style="margin-right:10px"></span>
+      </div>
+
       <div class="card">
         <h2 style="font-size:1.2rem">שלב 3 — כללי אבטחה</h2>
         <p class="mute small">הדביקו ב-Firestore ← Rules ← Publish. הכללים מגבילים כל פעולה לפי דרגת המשתמש
@@ -7148,6 +7173,23 @@ rankLvl: 70</pre></div>
     localStorage.removeItem(LS_KEY); localStorage.removeItem('smai_seeded_v2'); localStorage.removeItem('smai_uid');
     toast('המסד אופס'); setTimeout(()=>location.reload(), 700);
   };
+
+  // ── Gemini key save ──
+  const gemSave = $('#gemKeySave'), gemIn = $('#gemKeyIn'), gemSt = $('#gemKeyStatus');
+  if(gemSave){
+    Store.get('config','ai').then(cfg=>{ if(cfg?.geminiKey){ gemIn.value='●●●●●●●●'; gemSt.textContent='✓ מפתח שמור'; } }).catch(()=>{});
+    gemSave.onclick = async ()=>{
+      const k = gemIn.value.trim();
+      if(!k || k.startsWith('●')) return;
+      try{
+        await Store.set('config','ai',{ geminiKey:k });
+        localStorage.setItem('smai_ai_key', k);
+        sessionStorage.setItem('smai_ai_key', k);
+        gemIn.value='●●●●●●●●'; gemSt.textContent='✓ נשמר בהצלחה';
+        toast('מפתח Gemini נשמר','ok');
+      }catch(e){ toast('שגיאה: '+e.message,'err'); }
+    };
+  }
 });
 
 /* ===================== פרטיות ===================== */
