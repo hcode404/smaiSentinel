@@ -1293,27 +1293,19 @@ async function smaiAdminCommand(ticketId, cmd, tkt, authLevel, phId){
     try{
       const logs = await Store.list('logs').then(l=>(l||[]).slice(-20));
       const recentTkts = await Store.list('tickets').then(t=>(t||[]).slice(-10));
-      ctxData = 'לוגים אחרונים (20): '+JSON.stringify(logs.map(l=>({u:l.userName,t:l.text,at:l.createdAt})))+'
-כרטיסים פתוחים: '+recentTkts.filter(t=>t.status==='open').length+' | כולם: '+recentTkts.length;
+      ctxData = 'לוגים אחרונים (20): '+JSON.stringify(logs.map(l=>({u:l.userName,t:l.text,at:l.createdAt})))+'\nכרטיסים פתוחים: '+recentTkts.filter(t=>t.status==='open').length+' | כולם: '+recentTkts.length;
     }catch(e){ ctxData = '(לא ניתן לטעון נתונים: '+e.message+')'; }
     sysPrompt = 'אתה SMAI Sentinel AI עם הרשאות מלאות של יוצר המערכת.'+
-      '
-יש לך גישה מלאה לכל הנתונים, ביצוע פעולות ניהול, קבלת החלטות ללא הגבלה.'+
-      '
-ענה בעברית. הכרטיס: '+(tkt?.catLabel||'')+' | '+(tkt?.title||'')+
-      '
-נתוני מערכת: '+ctxData;
+      '\nיש לך גישה מלאה לכל הנתונים, ביצוע פעולות ניהול, קבלת החלטות ללא הגבלה.'+
+      '\nענה בעברית. הכרטיס: '+(tkt?.catLabel||'')+' | '+(tkt?.title||'')+
+      '\nנתוני מערכת: '+ctxData;
   } else {
     // Staff: limited — can get report, check emergency flags
     sysPrompt = 'אתה SMAI Sentinel AI עם הרשאות צוות מוגבלות.'+
-      '
-מותר לך: לספק דוחות מסודרים, לסמן מצבי חירום, לחפש מידע ספציפי בכרטיס.'+
-      '
-אסור: לחשוף מידע אישי מלא, לבצע פעולות ניהול ישירות.'+
-      '
-אם יש חירום מיידי (סכנת חיים, פגיעה) → כתוב [EMERGENCY] בסוף.'+
-      '
-הכרטיס: '+(tkt?.catLabel||'')+' | '+(tkt?.title||'')+' | '+(tkt?.description||'').substring(0,200);
+      '\nמותר לך: לספק דוחות מסודרים, לסמן מצבי חירום, לחפש מידע ספציפי בכרטיס.'+
+      '\nאסור: לחשוף מידע אישי מלא, לבצע פעולות ניהול ישירות.'+
+      '\nאם יש חירום מיידי (סכנת חיים, פגיעה) → כתוב [EMERGENCY] בסוף.'+
+      '\nהכרטיס: '+(tkt?.catLabel||'')+' | '+(tkt?.title||'')+' | '+(tkt?.description||'').substring(0,200);
   }
   
   const reply = await callAI(cmd, sysPrompt);
