@@ -1208,18 +1208,14 @@ async function submitBanAppeal(){
 }
 
 async function smaiAIReply(ticketId,triggerText){
-  const ph=await Store.add('messages',{ticketId,senderId:null,senderName:'SMAI AI',senderRank:'ai',staffSide:true,text:'חושב...',internal:false,system:false,createdAt:nowISO()}).catch(()=>null);
+  const ph = await Store.add('messages',{ticketId,senderId:'ai-system',senderName:'SMAI Sentinel AI',senderRank:'ai',ai:true,text:'מעבד…',createdAt:nowISO()});
   if(!ph) return;
   try{
-    const apiKey=sessionStorage.getItem('smai_ai_key')||'';
-    if(!apiKey){ await Store.update('messages',ph.id,{text:'כדי להשתמש ב-@AI הגדר מפתח Gemini API בהגדרות (מפתח: smai_ai_key ב-localStorage).'}); return; }
-    const msgs=await Store.list('messages').catch(()=>[]);
-    const ctx=msgs.filter(m=>m.ticketId===ticketId&&!m.internal).slice(-8).map(m=>(m.senderName||'משתמש')+': '+m.text).join('\n');
-    const body={contents:[{parts:[{text:'אתה עוזר תמיכה של SMAI. ענה בעברית, קצר וענייני.\n\n'+ctx+'\nAI:'}]}]};
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const j=await res.json();
-    const reply=j?.candidates?.[0]?.content?.parts?.[0]?.text||'לא הצלחתי לקבל תשובה.';
-    await Store.update('messages',ph.id,{text:reply});
+    const tkt = await Store.get('tickets',ticketId);
+    const sysP = 'אתה SMAI Sentinel AI, עוזר AI של ארגון SMAI להגנת ילדים ברשת. ענה בעברית בלבד, בחום, קצר ומעשי. אל תבטיח מה שאי אפשר לקיים. במצב סכנה מיידית הפנה למשטרה 100.' + (tkt ? ' המקרה: ' + (tkt.catLabel||'') + ' — ' + (tkt.title||tkt.description||'') + '.' : '');
+    const r = await fetch('https://text.pollinations.ai/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:triggerText}],model:'openai',system:sysP,private:true})});
+    const reply = await r.text();
+    await Store.update('messages',ph.id,{text:reply||'לא התקבלה תשובה'});
   }catch(e){ await Store.update('messages',ph.id,{text:'שגיאת AI: '+e.message}); }
 }
 
@@ -3896,7 +3892,7 @@ route('/ticket', async (app, id)=>{
       await Store.add('messages', { ticketId:id, senderId:Auth.user?.id||null,
         senderName: Auth.user?.name || (t.anonymous?'מדווח אנונימי':(t.reporterName||'מדווח')),
         senderRank: Auth.user?.rank || 'citizen', verified: Auth.user?.verified||false, staffSide: staff, text:txt, internal:!!internal, createdAt:nowISO() });
-      if(/\u0040AI\b/i.test(txt)) smaiAIReply(id, txt);
+      if(staff && /[@@](ai\b|smai\s+sentinel\s+ai)/i.test(txt)) smaiAIReply(id, txt);
       if(!internal){
         if(staff) await notifyTicket(t, 'ticketReply', MAIL_TPL.ticketReply(t, Auth.user?.name||'נציג SMAI', txt));
         else if(t.assignedTo) await mailUser(t.assignedTo, 'ticketReply', MAIL_TPL.ticketReply(t, 'המדווח', txt));
@@ -3927,8 +3923,8 @@ route('/ticket', async (app, id)=>{
     let _users=[];
     Store.list('users').then(u=>{ _users=u||[]; }).catch(()=>{});
     function _items(q){
-      const ai={id:'__ai__',name:'AI',email:''};
-      return [ai,..._users].filter(u=> !q || (u.name||'').toLowerCase().startsWith(q.toLowerCase()) || (u.email||'').toLowerCase().startsWith(q.toLowerCase()) || (u.id==='__ai__'&&'ai'.startsWith(q.toLowerCase())) ).slice(0,8);
+      const ai={id:'__ai__',name:'smai sentinel ai',email:''};
+      return [...(staff?[ai]:[]),..._users].filter(u=> !q || (u.name||'').toLowerCase().startsWith(q.toLowerCase()) || (u.email||'').toLowerCase().startsWith(q.toLowerCase()) || (u.id==='__ai__'&&'smai sentinel ai'.startsWith(q.toLowerCase())) ).slice(0,8);
     }
     function _render(){
       if(!mItems.length){ mList.classList.remove('open'); return; }
