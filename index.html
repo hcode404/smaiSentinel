@@ -3992,7 +3992,7 @@ route('/ticket', async (app, id)=>{
           <div class="who">SMAI AI <span class="b b-violet">${ic('sparkle',11)} סוכן חכם</span>
             ${m.escalated?'<span class="b b-dang">הועבר לנציג אנושי</span>':''}</div>
           ${aiStagesHTML(m.stages)}
-          <div ${m.replyTo?'<div class="reply-quote">↩ '+esc(m.replyTo.sender||'')+': '+esc((m.replyTo.text||'').substring(0,60))+'</div>':''}<div class="txt"(m.text)}</div>
+          ${m.replyTo?'<div class="reply-quote">↩ '+esc(m.replyTo.sender||'')+': '+esc((m.replyTo.text||'').substring(0,60))+'</div>':''}<div class="txt"(m.text)}</div>
           ${m.article?`<a class="btn btn-g btn-sm" style="margin-top:9px" href="#/article/${m.article}">${ic('book',14)} למדריך המלא</a>`:''}
           <div class="tm">${fmtTime(m.createdAt)} · ${fmtDate(m.createdAt)}</div><button class="reply-btn" data-mid="${m.id}" data-mtxt="${esc((m.text||'').substring(0,80))}" data-mname="${esc(m.senderName||'')}">↩</button></div></div>`;
       return `<div class="msg ${mine?'mine':''} ${m.internal?'int':''}">
